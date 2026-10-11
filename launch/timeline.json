@@ -1,0 +1,53 @@
+{
+  "fps": 30,
+  "duration": 61.0,
+  "chat": [
+    {"kind": "typing", "from": 0.9, "to": 2.1},
+    {"kind": "msg", "id": "m1", "dir": "in", "at": 2.1, "text": "Hey! This is Emily at Tony's Pizza 🍕"},
+    {"kind": "typing", "from": 2.6, "to": 4.2},
+    {"kind": "msg", "id": "m2", "dir": "in", "at": 4.2, "text": "Would love to see if you're interested in a large pepperoni tonight. We're also running a deal on garlic knots rn, I saw you got those last time. I could send over a coupon if you're interested!"},
+    {"kind": "compose", "from": 6.7, "to": 9.6, "text": "yeah that sounds great. though I'd rather do a half veg half pepperoni this time"},
+    {"kind": "msg", "id": "m3", "dir": "out", "at": 9.8, "read": 10.9, "text": "yeah that sounds great. though I'd rather do a half veg half pepperoni this time"},
+    {"kind": "typing", "from": 11.3, "to": 12.6},
+    {"kind": "msg", "id": "m4", "dir": "in", "at": 12.6, "text": "Okay sweet, not a problem! I'll get that order squared away 🙌"},
+    {"kind": "typing", "from": 13.1, "to": 14.2},
+    {"kind": "msg", "id": "m5", "dir": "in", "at": 14.2, "text": "Cool if we use the card on file?"},
+    {"kind": "compose", "from": 15.4, "to": 16.2, "text": "Yeah that works"},
+    {"kind": "msg", "id": "m6", "dir": "out", "at": 16.4, "read": 17.2, "text": "Yeah that works"},
+    {"kind": "typing", "from": 17.6, "to": 19.0},
+    {"kind": "msg", "id": "m7", "dir": "in", "at": 19.0, "text": "Awesome, thanks! Will place the order and let you know once we have an ETA."},
+    {"kind": "typing", "from": 19.5, "to": 20.3},
+    {"kind": "msg", "id": "m8", "dir": "in", "at": 20.3, "text": "thank you!!"},
+    {"kind": "typing", "from": 49.4, "to": 50.6},
+    {"kind": "msg", "id": "m9", "dir": "in", "at": 50.6, "text": "Order's in 🍕 Driver's on the way, ETA 6:52!"}
+  ],
+  "scenes": {
+    "chat": [0, 22.0],
+    "reveal": [21.6, 28.2],
+    "learn": [28.0, 38.6],
+    "outreach": [38.4, 47.6],
+    "kitchen": [47.4, 54.8],
+    "logo": [54.6, 61.0]
+  },
+  "beats": {"bpm": 100, "drop": 23.6, "end": 54.6},
+  "sfx": [
+    {"type": "whoosh", "at": 21.9},
+    {"type": "riser", "from": 21.9, "to": 23.6},
+    {"type": "impact", "at": 23.6},
+    {"type": "whoosh", "at": 28.0},
+    {"type": "whoosh", "at": 38.4},
+    {"type": "whoosh", "at": 47.4},
+    {"type": "printer", "from": 48.6, "to": 51.4},
+    {"type": "chime", "at": 51.9},
+    {"type": "chime", "at": 52.5},
+    {"type": "chime", "at": 53.1},
+    {"type": "impact", "at": 55.0}
+  ],
+  "outreach": [
+    {"name": "Priya", "initials": "PR", "color": "#8B5CF6", "time": "11:40", "text": "Hey Priya, Emily from Tony's 👋 margherita for lunch again? I can have it ready by 12:15", "reply": "yes!! 🙏", "row": 0},
+    {"name": "Marcus", "initials": "MJ", "color": "#10B981", "time": "15:10", "text": "Marcus! been a minute 👀 large supreme + wings for the game tonight?", "reply": "you read my mind", "row": 1},
+    {"name": "Jess", "initials": "JM", "color": "#FF5A1F", "time": "16:45", "text": "Hey! This is Emily at Tony's Pizza 🍕", "reply": "yeah that sounds great…", "row": 0},
+    {"name": "Dana", "initials": "DK", "color": "#3B82F6", "time": "17:20", "text": "hi Dana! your usual thin crust margherita around 6:30?", "reply": "not tonight, next week!", "row": 2, "declined": true},
+    {"name": "Theo", "initials": "TB", "color": "#F59E0B", "time": "18:05", "text": "Theo, same as last Friday? large pepperoni + 2 cokes", "reply": "bet", "row": 1}
+  ]
+}

@@ -11,3 +11,6 @@ data/kitchen_tickets.jsonl
 celerybeat-schedule*
 build/
 dist/
+launch/silent.mp4
+launch/soundtrack.wav
+launch/preview-*.png
