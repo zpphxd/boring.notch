@@ -51,11 +51,13 @@ class CartItem(BaseModel):
     item_id: str
     size: str | None = None
     quantity: int = 1
-    modifiers: list[str] = Field(default_factory=list)
+    modifiers: list[str] = Field(default_factory=list)  # whole item
+    halves: list[list[str]] | None = None  # pizzas only: [first-half toppings, second-half toppings]
     notes: str | None = None
 
     def key(self) -> tuple:
-        return (self.item_id, self.size, self.quantity, tuple(sorted(self.modifiers)), self.notes or "")
+        halves = tuple(tuple(sorted(h)) for h in self.halves) if self.halves else ()
+        return (self.item_id, self.size, self.quantity, tuple(sorted(self.modifiers)), halves, self.notes or "")
 
 
 class PricedModifier(BaseModel):
@@ -70,9 +72,16 @@ class PricedLine(BaseModel):
     size: str | None
     quantity: int
     modifiers: list[PricedModifier]
+    halves: list[list[PricedModifier]] | None = None
     notes: str | None
     unit_price_cents: int
     line_total_cents: int
+
+    @property
+    def halves_text(self) -> str:
+        if not self.halves:
+            return ""
+        return " / ".join("½ " + (", ".join(m.name for m in h) or "Cheese") for h in self.halves)
 
     @property
     def display(self) -> str:
@@ -81,6 +90,8 @@ class PricedLine(BaseModel):
         text = f"{self.quantity}x {size}{self.name}"
         if mods:
             text += f" w/ {mods}"
+        if self.halves:
+            text += f" ({self.halves_text})"
         if self.notes:
             text += f" ({self.notes})"
         return text
@@ -104,6 +115,7 @@ class ValidatedCart(BaseModel):
                 size=line.size,
                 quantity=line.quantity,
                 modifiers=[m.id for m in line.modifiers],
+                halves=[[m.id for m in h] for h in line.halves] if line.halves else None,
                 notes=line.notes,
             )
             for line in self.lines
@@ -119,6 +131,7 @@ class Menu:
         self.items: dict[str, MenuItem] = {i["id"]: MenuItem(**i) for i in data["items"]}
         self.modifiers: dict[str, Modifier] = {m["id"]: Modifier(**m) for m in data["modifiers"]}
         self.exclusive_groups: set[str] = set(data.get("exclusive_groups", []))
+        self.house_rules: list[str] = list(data.get("house_rules", []))
         self.tax_rate = tax_rate
 
         self._aliases = sorted(
@@ -141,7 +154,7 @@ class Menu:
         return None
 
     def parse_item_text(self, text: str, quantity: int = 1) -> CartItem | None:
-        """Map a free-text line from a POS / DoorDash / Grubhub export to a cart item,
+        """Map a free-text line from a POS / DoorDash / spreadsheet export to a cart item,
         e.g. 'Lg Pepperoni Pizza' -> pizza(large, [pepperoni])."""
         raw = text.lower().strip()
         if not raw:
@@ -220,13 +233,33 @@ class Menu:
             seen_groups.add(mod.group)
             mods.append(PricedModifier(id=mod.id, name=mod.name, price_cents=mod.price_for(size)))
 
-        unit = base + sum(m.price_cents for m in mods)
+        halves: list[list[PricedModifier]] | None = None
+        if item.halves:
+            if menu_item.category != "pizza" or len(item.halves) != 2:
+                errors.append(f"Half-and-half only works on pizzas (two halves) for {menu_item.name}.")
+                return None
+            halves = []
+            for half in item.halves:
+                priced = []
+                for mod_id in dict.fromkeys(half):
+                    mod = self.modifiers.get(mod_id)
+                    if not mod or mod.group != "topping" or "topping" not in menu_item.modifier_groups:
+                        errors.append(f"{mod.name if mod else mod_id} can't go on half a {menu_item.name}.")
+                        return None
+                    # half a topping costs half (rounded up to the cent)
+                    priced.append(PricedModifier(id=mod.id, name=mod.name, price_cents=-(-mod.price_for(size) // 2)))
+                halves.append(priced)
+            if not any(halves):
+                halves = None
+
+        unit = base + sum(m.price_cents for m in mods) + sum(m.price_cents for h in (halves or []) for m in h)
         return PricedLine(
             item_id=menu_item.id,
             name=menu_item.name,
             size=size,
             quantity=item.quantity,
             modifiers=mods,
+            halves=halves,
             notes=(item.notes or None),
             unit_price_cents=unit,
             line_total_cents=unit * item.quantity,
@@ -247,6 +280,9 @@ class Menu:
         out.append("MODIFIERS (id | name | group):")
         for mod in self.modifiers.values():
             out.append(f"- {mod.id} | {mod.name} | {mod.group}")
+        if self.house_rules:
+            out.append("HOUSE RULES:")
+            out += [f"- {rule}" for rule in self.house_rules]
         return "\n".join(out)
 
     def describe(self, cart: list[CartItem] | list[dict]) -> str:
@@ -257,7 +293,10 @@ class Menu:
             qty = f"{line.quantity} " if line.quantity > 1 else ""
             if self.items[line.item_id].category == "pizza":
                 toppings = [m.name.lower() for m in line.modifiers if self.modifiers[m.id].group == "topping"]
-                if line.item_id == "pizza":
+                if line.halves:
+                    sides = [_half_name(h) for h in line.halves]
+                    flavor = f"half {sides[0]} / half {sides[1]}" + (f" (+{', '.join(toppings)})" if toppings else "")
+                elif line.item_id == "pizza":
                     flavor = " & ".join(toppings) or "cheese"
                 else:
                     flavor = line.name.removesuffix(" Pizza").lower()
@@ -273,6 +312,17 @@ class Menu:
         if len(parts) <= 1:
             return "".join(parts)
         return ", ".join(parts[:-1]) + " and " + parts[-1]
+
+
+VEGGIE = {"mushroom", "onion", "green_pepper", "black_olive", "jalapeno"}
+
+
+def _half_name(half: list[PricedModifier]) -> str:
+    if not half:
+        return "cheese"
+    if len(half) > 2:
+        return "veggie" if all(m.id in VEGGIE for m in half) else f"{len(half)}-topping"
+    return " & ".join(m.name.lower() for m in half)
 
 
 @lru_cache

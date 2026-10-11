@@ -10,6 +10,7 @@
 <div class="row" style="margin-top:12px">
   <form method="post" action="/admin/settings/test/ai"><button>Test AI</button></form>
   <form method="post" action="/admin/settings/test/text"><button>Send me a test text</button></form>
+  <form method="post" action="/admin/settings/test/bluebubbles"><button>Test BlueBubbles</button></form>
 </div>
 
 <form method="post" action="/admin/settings">
@@ -38,6 +39,6 @@
 </form>
 
 <h2>Webhook URLs</h2>
-<p class="muted small">Paste these into Sendblue and Retell. Set a webhook secret above first. {% if not s.public_base_url %}Set PUBLIC_BASE_URL if these don't show your public address.{% endif %}</p>
+<p class="muted small">Paste these into BlueBubbles (API &amp; Webhooks page, event: New Messages), Sendblue and Retell. Set a webhook secret above first. {% if not s.public_base_url %}Set PUBLIC_BASE_URL if these don't show your public address.{% endif %}</p>
 <table>{% for k, v in urls.items() %}<tr><td>{{ k }}</td><td class="mono">{{ v }}</td></tr>{% endfor %}</table>
 {% endblock %}

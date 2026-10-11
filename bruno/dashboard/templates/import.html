@@ -11,7 +11,7 @@
     <label>Where it's from</label>
     <select name="source">
       {% for v, l in [("square", "Square"), ("toast", "Toast"), ("clover", "Clover"), ("doordash", "DoorDash (merchant portal)"),
-                      ("grubhub", "Grubhub (for Restaurants)"), ("pos", "Other / spreadsheet")] %}<option value="{{ v }}">{{ l }}</option>{% endfor %}
+                      ("pos", "Other / spreadsheet")] %}<option value="{{ v }}">{{ l }}</option>{% endfor %}
     </select>
     <label style="font-weight:400"><input type="checkbox" name="consent" checked>
       These customers agreed to receive texts from us (e.g. opted in at checkout or on the loyalty program).</label>

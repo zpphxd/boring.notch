@@ -20,7 +20,7 @@ from bruno.delivery import marketplace_links
 from bruno.fsm import TERMINAL, State
 from bruno.llm import LLMError
 from bruno.menu import Menu, money
-from bruno.messaging import MessagingError, normalize_phone
+from bruno.messaging import BlueBubblesMessenger, MessagingError, normalize_phone
 from bruno.models import CadenceTracker, Conversation, Customer, Message, Order, Outreach
 from bruno.orchestrator import order_summary, order_totals
 from bruno.payments import payment_method_label
@@ -51,6 +51,27 @@ templates.env.filters["clock"] = lambda hhmm: (
     datetime.strptime(hhmm, "%H:%M").strftime("%I:%M %p").lstrip("0") if hhmm else ""
 )
 templates.env.filters["state"] = lambda s: (s or "").replace("STATE_", "").replace("_", " ").lower()
+
+
+def bluebubbles_check(bb: BlueBubblesMessenger) -> tuple[str, str]:
+    """Ping the server (raises MessagingError) and describe what it reports.
+    Returns (message, flash kind)."""
+    bb.ping()
+    info = bb.server_info()
+    parts = [f"BlueBubbles server at {bb.base_url} answered"]
+    if info.get("server_version"):
+        parts[0] += f" (v{info['server_version']})"
+    if info.get("detected_imessage"):
+        parts.append(f"iMessage account: {info['detected_imessage']}")
+    kind = "ok"
+    if bb.private_api:
+        if info and not (info.get("private_api") and info.get("helper_connected")):
+            kind = "error"
+            parts.append("Private API is on in Bruno but the helper isn't connected on the Mac, "
+                         "so typing bubbles and sends will fail. Finish the Private API setup or turn it off here")
+        elif info:
+            parts.append("Private API helper connected")
+    return ". ".join(parts) + ".", kind
 
 
 def mount_dashboard(app: FastAPI, get_factory: Callable[[], sessionmaker], get_deps: Callable[[], Deps]) -> None:
@@ -120,7 +141,8 @@ def mount_dashboard(app: FastAPI, get_factory: Callable[[], sessionmaker], get_d
         orders = session.scalar(select(func.count(Order.id))) or 0
         checklist = [
             ("AI model key", s.llm_ready and getattr(deps.llm, "name", "") != "mock", "/admin/settings#ai-model"),
-            ("Sendblue texting keys", s.sendblue_ready, "/admin/settings#texting-sendblue"),
+            ("Texting gateway (BlueBubbles or Sendblue)", s.bluebubbles_ready or s.sendblue_ready,
+             "/admin/settings#texting-bluebubbles"),
             ("Order history imported", orders > 0, "/admin/import"),
             ("Menu reviewed", bool(s.menu_json), "/admin/menu"),
             ("POS connected (or console tickets)", True, "/admin/settings#pos-square"),
@@ -152,6 +174,7 @@ def mount_dashboard(app: FastAPI, get_factory: Callable[[], sessionmaker], get_d
         base = (s.public_base_url or str(request.base_url)).rstrip("/")
         qs = f"?secret={s.webhook_secret}" if s.webhook_secret else ""
         urls = {
+            "BlueBubbles: webhook (event: New Messages)": f"{base}/webhook/bluebubbles{qs}",
             "Sendblue: receive webhook": f"{base}/webhook/incoming{qs}",
             "Sendblue: status callback": f"{base}/webhook/sendblue/status{qs}",
             "Retell: inbound call webhook": f"{base}/voice/retell/inbound{qs}",
@@ -219,6 +242,11 @@ def mount_dashboard(app: FastAPI, get_factory: Callable[[], sessionmaker], get_d
                     raise ValueError("Add the owner/manager cell first.")
                 deps.messenger.send(normalize_phone(s.owner_phone), f"👋 Test from Bruno at {s.restaurant_name}. Texting works!")
                 flash(request, f"Test text sent to {s.owner_phone}.")
+            elif service == "bluebubbles":
+                bb = deps.messenger if isinstance(deps.messenger, BlueBubblesMessenger) else None
+                if bb is None and not s.bluebubbles_ready:
+                    raise ValueError("Add the BlueBubbles server URL and password first, then Save.")
+                flash(request, *bluebubbles_check(bb or BlueBubblesMessenger(s)))
             else:
                 raise ValueError("unknown test")
         except (LLMError, MessagingError, ValueError) as exc:

@@ -161,7 +161,7 @@ def main() -> None:
     p.add_argument("--outreach", action="store_true", help="Start with Bruno texting you first")
     p = sub.add_parser("import")
     p.add_argument("file")
-    p.add_argument("--source", default="pos", help="square | toast | clover | doordash | grubhub | pos")
+    p.add_argument("--source", default="pos", help="square | toast | clover | doordash | pos (any label works)")
     p.add_argument("--no-consent", action="store_true", help="Import for learning only; don't text these customers")
     p = sub.add_parser("outreach")
     p.add_argument("--count", type=int, default=5)

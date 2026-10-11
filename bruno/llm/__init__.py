@@ -23,7 +23,9 @@ def build_llm(settings: Settings) -> LLMClient:
 
         if not settings.anthropic_api_key:
             raise ValueError("LLM_PROVIDER=anthropic requires ANTHROPIC_API_KEY")
-        return AnthropicLLM(settings.anthropic_api_key, settings.anthropic_model, settings.llm_timeout_seconds)
+        return AnthropicLLM(
+            settings.anthropic_api_key, settings.anthropic_model, settings.llm_timeout_seconds, settings.anthropic_effort
+        )
     if provider == "mock":
         from bruno.llm.mock_llm import MockLLM
 

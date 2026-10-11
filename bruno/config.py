@@ -42,10 +42,14 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4o"
     anthropic_api_key: str | None = None
     anthropic_model: str = "claude-sonnet-5-5"
-    llm_timeout_seconds: float = 20.0
+    anthropic_effort: str = "low"  # low keeps text replies fast; raise for trickier menus
+    llm_timeout_seconds: float = 60.0
 
     # --- Texting --------------------------------------------------------------
-    messaging_provider: str = "auto"  # auto | console | sendblue
+    messaging_provider: str = "auto"  # auto | bluebubbles | sendblue | console
+    bluebubbles_url: str = ""  # e.g. https://xyz.trycloudflare.com or http://192.168.1.20:1234
+    bluebubbles_password: str | None = None
+    bluebubbles_private_api: bool = False  # typing bubbles + private-api sends (helper must be installed)
     sendblue_api_key_id: str | None = None
     sendblue_api_secret_key: str | None = None
     sendblue_from_number: str | None = None
@@ -76,7 +80,6 @@ class Settings(BaseSettings):
     delivery_fee: float = 4.99  # charged to the customer for DoorDash Drive deliveries
     delivery_min_order: float = 15.0
     doordash_store_url: str = ""  # marketplace page, used when Drive isn't set up
-    grubhub_store_url: str = ""
 
     # --- Outreach autopilot ---------------------------------------------------
     autopilot_enabled: bool = False
@@ -100,6 +103,10 @@ class Settings(BaseSettings):
     @property
     def llm_ready(self) -> bool:
         return bool(self.openai_api_key or self.anthropic_api_key) or self.llm_provider == "mock"
+
+    @property
+    def bluebubbles_ready(self) -> bool:
+        return bool(self.bluebubbles_url and self.bluebubbles_password)
 
     @property
     def sendblue_ready(self) -> bool:
@@ -149,11 +156,22 @@ FIELDS: list[Field] = [
     Field("openai_model", "OpenAI model", "AI model"),
     Field("anthropic_api_key", "Anthropic API key", "AI model", secret=True),
     Field("anthropic_model", "Anthropic model", "AI model"),
-    Field("sendblue_api_key_id", "Sendblue API key ID", "Texting (Sendblue)", secret=True),
+    Field("anthropic_effort", "Claude effort", "AI model", kind="select", options=("low", "medium", "high"),
+          help="How hard Claude thinks per reply. Low = fastest."),
+    Field("messaging_provider", "Texting gateway", "Texting", kind="select",
+          options=("auto", "bluebubbles", "sendblue", "console"),
+          help="auto: BlueBubbles if set up, else Sendblue, else print texts to the log."),
+    Field("webhook_secret", "Webhook secret", "Texting", secret=True, help="Appended to webhook URLs as ?secret="),
+    Field("human_delays", "Typing indicator + human pauses", "Texting", kind="bool"),
+    Field("bluebubbles_url", "BlueBubbles server URL", "Texting (BlueBubbles)",
+          help="e.g. https://xyz.trycloudflare.com or http://192.168.1.20:1234"),
+    Field("bluebubbles_password", "BlueBubbles server password", "Texting (BlueBubbles)", secret=True),
+    Field("bluebubbles_private_api", "Use the BlueBubbles Private API", "Texting (BlueBubbles)", kind="bool",
+          help="Typing bubbles. Only turn on once the Private API helper is set up on the Mac."),
+    Field("sendblue_api_key_id", "Sendblue API key ID", "Texting (Sendblue)", secret=True,
+          help="Alternative to BlueBubbles for production volume."),
     Field("sendblue_api_secret_key", "Sendblue API secret", "Texting (Sendblue)", secret=True),
     Field("sendblue_from_number", "Sendblue line (from number)", "Texting (Sendblue)", help="+1..., your Sendblue number"),
-    Field("webhook_secret", "Webhook secret", "Texting (Sendblue)", secret=True, help="Appended to webhook URLs as ?secret="),
-    Field("human_delays", "Typing indicator + human pauses", "Texting (Sendblue)", kind="bool"),
     Field("voice_phone_number", "Voice line (Retell number)", "Voice (Retell)", help="Blank if it's the same as the texting number."),
     Field("square_access_token", "Square access token", "POS (Square)", secret=True),
     Field("square_location_id", "Square location ID", "POS (Square)"),
@@ -168,7 +186,6 @@ FIELDS: list[Field] = [
     Field("delivery_fee", "Delivery fee charged ($)", "Delivery", kind="number"),
     Field("delivery_min_order", "Delivery minimum ($)", "Delivery", kind="number"),
     Field("doordash_store_url", "Your DoorDash store link", "Delivery", help="Sent when a customer wants delivery and Drive isn't set up."),
-    Field("grubhub_store_url", "Your Grubhub store link", "Delivery"),
     Field("autopilot_enabled", "Autopilot outreach", "Autopilot", kind="bool"),
     Field("outreach_mode", "Mode", "Autopilot", kind="select", options=("approve", "auto"),
           help="approve: you OK each text in the Outreach tab. auto: Bruno sends on its own."),

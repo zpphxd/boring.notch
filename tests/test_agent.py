@@ -381,3 +381,20 @@ def test_addon_suggestion_from_company_history(session, deps, settings):
     start(session, d, dave)
     bruno(session, d).handle_inbound_text(DAVE_PHONE, "hi who is this")
     assert "Garlic Knots" in llm.contexts[0].system_prompt
+
+
+def test_upsell_never_rides_along_with_a_recap(session, deps, settings):
+    for k in range(4):
+        make_customer(session, settings, now=FRIDAY_430PM, phone=f"+1555445{k:04d}", name=f"K{k}", last_days_ago=2,
+                      cart=[{"item_id": "pizza", "size": "large", "modifiers": [], "quantity": 1},
+                            {"item_id": "sprite", "quantity": 1}])
+    dave = make_customer(session, settings, now=FRIDAY_430PM)
+    llm = ScriptedLLM(AgentTurn(
+        intent=Intent.UPDATE_ORDER,
+        cart=[CartItem(item_id="pizza", size="large", halves=[["mushroom", "onion"], ["pepperoni"]])],
+        reply="nice. {order} ready around {when}, {total} {payment}. want me to put it in?\n\nwant a Sprite with that?"))
+    d = replace(deps, llm=llm)
+    start(session, d, dave)
+    out = bruno(session, d).handle_inbound_text(DAVE_PHONE, "half veg half pepperoni")
+    assert "Sprite" not in out.reply and "put it in" in out.reply
+    assert "half mushroom & onion / half pepperoni" in out.reply

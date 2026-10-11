@@ -3,9 +3,9 @@
 * DoorDash Drive (https://developer.doordash.com/docs/drive): the restaurant's
   own order, delivered by a DoorDash courier. Bruno gets a quote to check the
   address is deliverable, then creates the delivery when the order is placed.
-* Marketplace hand-off: DoorDash/Grubhub have no public API for placing
-  marketplace orders, so when Drive isn't set up Bruno sends the customer the
-  restaurant's own store link instead.
+* Marketplace hand-off: DoorDash has no public API for placing marketplace
+  orders, so when Drive isn't set up Bruno sends the customer the restaurant's
+  own DoorDash store link instead.
 """
 
 import base64
@@ -153,8 +153,4 @@ def build_delivery(settings: Settings) -> DeliveryProvider | None:
 
 
 def marketplace_links(settings: Settings) -> list[tuple[str, str]]:
-    return [
-        (name, url)
-        for name, url in (("DoorDash", settings.doordash_store_url), ("Grubhub", settings.grubhub_store_url))
-        if url
-    ]
+    return [("DoorDash", settings.doordash_store_url)] if settings.doordash_store_url else []

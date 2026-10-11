@@ -51,7 +51,14 @@ class LLMClient(Protocol):
 def turn_json_schema(menu: Menu) -> dict:
     """Strict JSON schema; item and modifier ids are enums so the model can only
     pick things that exist on the live menu."""
-    nullable_str = {"type": ["string", "null"]}
+    # Nullable values are written as anyOf (Claude's structured outputs reject
+    # an enum under a multi-type "type" list; OpenAI strict mode accepts anyOf too).
+    nullable_str = {"anyOf": [{"type": "string"}, {"type": "null"}]}
+
+    def nullable_enum(values: list[str]) -> dict:
+        return {"anyOf": [{"type": "string", "enum": values}, {"type": "null"}]}
+
+    topping_ids = [m.id for m in menu.modifiers.values() if m.group == "topping"] or list(menu.modifiers)
     return {
         "type": "object",
         "additionalProperties": False,
@@ -73,14 +80,24 @@ def turn_json_schema(menu: Menu) -> dict:
                 "items": {
                     "type": "object",
                     "additionalProperties": False,
-                    "required": ["item_id", "size", "quantity", "modifiers", "notes"],
+                    "required": ["item_id", "size", "quantity", "modifiers", "halves", "notes"],
                     "properties": {
                         "item_id": {"type": "string", "enum": list(menu.items)},
-                        "size": {"type": ["string", "null"], "enum": [*SIZES, None]},
+                        "size": nullable_enum(list(SIZES)),
                         "quantity": {"type": "integer"},
                         "modifiers": {
                             "type": "array",
                             "items": {"type": "string", "enum": list(menu.modifiers)},
+                        },
+                        "halves": {
+                            "anyOf": [
+                                {
+                                    "type": "array",
+                                    "items": {"type": "array", "items": {"type": "string", "enum": topping_ids}},
+                                },
+                                {"type": "null"},
+                            ],
+                            "description": "Half-and-half pizza: exactly two lists, [first half toppings, second half toppings]. Otherwise null.",
                         },
                         "notes": {**nullable_str, "description": "Kitchen note, e.g. 'well done'"},
                     },
@@ -91,8 +108,7 @@ def turn_json_schema(menu: Menu) -> dict:
                 "description": "Requested time, local 24h HH:MM, or null to keep the current one.",
             },
             "fulfillment": {
-                "type": ["string", "null"],
-                "enum": ["pickup", "delivery", None],
+                **nullable_enum(["pickup", "delivery"]),
                 "description": "Only set if the customer chose pickup or delivery in this message.",
             },
             "delivery_address": {**nullable_str, "description": "Full street address if they gave one."},

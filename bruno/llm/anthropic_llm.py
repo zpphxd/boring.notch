@@ -1,8 +1,18 @@
-"""Anthropic (Claude) adapter. Structured output via a single forced tool call."""
+"""Anthropic (Claude) adapter.
+
+Turns use structured outputs (`output_config.format`): the reply is JSON that
+matches the menu-constrained schema. (Forced `tool_choice` is rejected by
+current models such as Claude Sonnet 5.5, so it isn't used.) Current models
+think adaptively before answering, so `max_tokens` leaves room for that, and
+`effort` keeps texting latency low.
+"""
+
+import json
 
 from bruno.llm.base import AgentTurn, LLMError, TurnContext, messages_with_corrections, turn_json_schema
 
-TOOL_NAME = "respond_to_customer"
+TURN_MAX_TOKENS = 16000
+WRITE_MAX_TOKENS = 4000
 
 
 def _anthropic_messages(messages: list[dict]) -> list[dict]:
@@ -18,48 +28,53 @@ def _anthropic_messages(messages: list[dict]) -> list[dict]:
     return out
 
 
+def _text(resp) -> str:
+    if resp.stop_reason == "refusal":
+        raise LLMError("model declined the request")
+    if resp.stop_reason == "max_tokens":
+        raise LLMError("model ran out of output tokens")
+    return "".join(b.text for b in resp.content if b.type == "text").strip()
+
+
 class AnthropicLLM:
     name = "anthropic"
 
-    def __init__(self, api_key: str, model: str, timeout: float = 20.0):
+    def __init__(self, api_key: str, model: str, timeout: float = 20.0, effort: str = "low"):
         from anthropic import Anthropic
 
         self.client = Anthropic(api_key=api_key, timeout=timeout)
         self.model = model
+        self.effort = effort
 
     def generate_turn(self, ctx: TurnContext) -> AgentTurn:
         try:
             resp = self.client.messages.create(
                 model=self.model,
-                max_tokens=1024,
+                max_tokens=TURN_MAX_TOKENS,
                 system=ctx.system_prompt,
                 messages=_anthropic_messages(messages_with_corrections(ctx)),
-                tools=[
-                    {
-                        "name": TOOL_NAME,
-                        "description": "Send the reply and the updated cart state.",
-                        "input_schema": turn_json_schema(ctx.menu),
-                    }
-                ],
-                tool_choice={"type": "tool", "name": TOOL_NAME},
+                output_config={
+                    "effort": self.effort,
+                    "format": {"type": "json_schema", "schema": turn_json_schema(ctx.menu)},
+                },
             )
-            for block in resp.content:
-                if block.type == "tool_use" and block.name == TOOL_NAME:
-                    return AgentTurn.model_validate(block.input)
-            raise LLMError("model did not call the response tool")
+            return AgentTurn.model_validate(json.loads(_text(resp)))
         except LLMError:
             raise
-        except Exception as exc:
+        except Exception as exc:  # network, rate limit, bad JSON
             raise LLMError(str(exc)) from exc
 
     def write(self, system: str, prompt: str) -> str:
         try:
             resp = self.client.messages.create(
                 model=self.model,
-                max_tokens=400,
+                max_tokens=WRITE_MAX_TOKENS,
                 system=system,
                 messages=[{"role": "user", "content": prompt}],
+                output_config={"effort": self.effort},
             )
-            return "".join(b.text for b in resp.content if b.type == "text").strip()
+            return _text(resp)
+        except LLMError:
+            raise
         except Exception as exc:
             raise LLMError(str(exc)) from exc

@@ -87,6 +87,8 @@ def render_ticket(order: POSOrder) -> str:
         lines.append(f"{head[: width - len(price) - 1]:<{width - len(price)}}{price}")
         for mod in li.modifiers:
             lines.append(f"    + {mod.name}")
+        for n, half in enumerate(li.halves or []):
+            lines.append(f"    ½ {'A' if n == 0 else 'B'}: {', '.join(m.name for m in half) or 'Cheese'}")
         if li.notes:
             lines.append(f"    ! {li.notes}")
     lines += [
@@ -152,8 +154,15 @@ class SquarePOS:
                 {
                     "name": name,
                     "quantity": str(li.quantity),
-                    "base_price_money": money(li.unit_price_cents - sum(m.price_cents for m in li.modifiers)),
-                    "modifiers": [{"name": m.name, "base_price_money": money(m.price_cents)} for m in li.modifiers],
+                    "base_price_money": money(
+                        li.unit_price_cents - sum(m.price_cents for m in li.modifiers)
+                        - sum(m.price_cents for h in (li.halves or []) for m in h)
+                    ),
+                    "modifiers": [{"name": m.name, "base_price_money": money(m.price_cents)} for m in li.modifiers]
+                    + [
+                        {"name": f"½ {'A' if n == 0 else 'B'} {m.name}", "base_price_money": money(m.price_cents)}
+                        for n, half in enumerate(li.halves or []) for m in half
+                    ],
                     **({"note": li.notes} if li.notes else {}),
                 }
             )

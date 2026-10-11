@@ -27,7 +27,7 @@ from bruno.db import get_engine, get_sessionmaker, init_db
 from bruno.deps import Deps, get_deps
 from bruno.locks import customer_lock
 from bruno.menu import CartItem
-from bruno.messaging import normalize_phone, parse_sendblue_inbound
+from bruno.messaging import normalize_phone, parse_bluebubbles_inbound, parse_sendblue_inbound
 from bruno.models import Conversation, Customer, Order
 from bruno.payments import verify_stripe_signature
 from bruno.timeutil import utcnow
@@ -132,6 +132,19 @@ def create_app(deps: Deps | None = None, session_factory: sessionmaker | None = 
         if inbound is None:
             return {"status": "ignored"}
         # Ack fast (Sendblue retries slow/non-2xx webhooks); think + "type" after.
+        background.add_task(process_inbound_text, inbound.from_number, inbound.content, inbound.message_id)
+        return {"status": "accepted"}
+
+    @app.post("/webhook/bluebubbles", dependencies=[Depends(verify_secret)])
+    async def bluebubbles_incoming(request: Request, background: BackgroundTasks) -> dict:
+        try:
+            payload = await request.json()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="expected JSON") from None
+        inbound = parse_bluebubbles_inbound(payload)
+        if inbound is None:
+            return {"status": "ignored"}  # our own sends echoing back, groups, reactions, other events
+        # Same as Sendblue: ack fast, then think + "type" in the background.
         background.add_task(process_inbound_text, inbound.from_number, inbound.content, inbound.message_id)
         return {"status": "accepted"}
 

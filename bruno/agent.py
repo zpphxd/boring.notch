@@ -400,6 +400,11 @@ class Bruno:
         if humanize.has_unverified_price(reply, allowed):
             log.warning("LLM wrote an unverified price; replacing reply")
             reply = ""
+        if ctx.addon and facts["total"] in reply:
+            # A recap must be the only question in the message, or "yes" becomes ambiguous.
+            addon = self.menu.items[ctx.addon].name.split(" (")[0].lower()
+            bubbles = humanize.split_bubbles(reply)
+            reply = "\n\n".join(b for b in bubbles if facts["total"] in b or addon not in b.lower())
 
         if target == State.POS_INJECTION:
             result = self.finalize_order(conv, "text")

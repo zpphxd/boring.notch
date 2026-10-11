@@ -184,7 +184,8 @@ def system_prompt(ctx: CustomerContext, menu: Menu, settings: Settings, can_link
     if ctx.addon and ctx.state in (State.AWAITING_RESPONSE, State.NEGOTIATING_MODIFICATIONS):
         addon = (
             f"\nOPTIONAL ADD-ON: if it fits naturally and you haven't already, you can mention "
-            f"{menu.items[ctx.addon].name} once (it's popular with what they're getting). Never push it twice."
+            f"{menu.items[ctx.addon].name.split(' (')[0]} once (it's popular with what they're getting). Never push it twice, "
+            f"and never in the same message as a recap: one question per message, so a 'yes' is never ambiguous."
         )
     return f"""You are {settings.agent_name} from {settings.restaurant_name}, a neighborhood pizzeria, texting with a customer over iMessage to take their order. Be the best counter person in town: you remember regulars, you're quick, warm and easy to deal with.
 

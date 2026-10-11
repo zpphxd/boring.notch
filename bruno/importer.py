@@ -1,8 +1,8 @@
 """Import order history from POS / marketplace CSV exports so Bruno can learn
 each customer before sending a single text.
 
-Works with Square, Toast, Clover, DoorDash and Grubhub exports and generic
-spreadsheets: columns are detected by name, line-item exports are grouped
+Works with Square, Toast, Clover and DoorDash exports and any other
+spreadsheet: columns are detected by name, line-item exports are grouped
 by order/check number, and item names are mapped onto the menu
 ("Lg Pepperoni Pizza" -> large pizza with pepperoni). Rows without a phone
 number are skipped and counted in the report (marketplaces usually mask

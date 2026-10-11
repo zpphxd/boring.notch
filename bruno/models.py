@@ -56,7 +56,7 @@ class Order(Base):
     total_amount: Mapped[Decimal] = mapped_column(Numeric(10, 2))
     order_date: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
     channel: Mapped[str] = mapped_column(String(16))  # text | voice | pos
-    source: Mapped[str] = mapped_column(String(16), default="bruno")  # bruno | square | toast | doordash | grubhub | ...
+    source: Mapped[str] = mapped_column(String(16), default="bruno")  # bruno | square | toast | doordash | ...
     status: Mapped[str] = mapped_column(String(16))  # completed | lapsed | active_chat
     fulfillment: Mapped[str] = mapped_column(String(16), default="pickup")  # pickup | delivery
     pickup_time: Mapped[str | None] = mapped_column(String(5))
