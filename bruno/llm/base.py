@@ -1,7 +1,7 @@
 """Provider-agnostic contract for the conversational model."""
 
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import Literal, Protocol
 
 from pydantic import BaseModel, Field
 
@@ -15,6 +15,9 @@ class AgentTurn(BaseModel):
     intent: Intent
     cart: list[CartItem] = Field(default_factory=list)  # full cart AFTER this message
     pickup_time: str | None = None  # local 24h "HH:MM"
+    fulfillment: Literal["pickup", "delivery"] | None = None  # None = unchanged
+    delivery_address: str | None = None
+    remember: list[str] = Field(default_factory=list)  # durable facts about the customer
     reply: str
 
 
@@ -40,6 +43,10 @@ class LLMClient(Protocol):
 
     def generate_turn(self, ctx: TurnContext) -> AgentTurn: ...
 
+    def write(self, system: str, prompt: str) -> str:
+        """Free-form text (used for outreach messages and nudges)."""
+        ...
+
 
 def turn_json_schema(menu: Menu) -> dict:
     """Strict JSON schema; item and modifier ids are enums so the model can only
@@ -48,15 +55,16 @@ def turn_json_schema(menu: Menu) -> dict:
     return {
         "type": "object",
         "additionalProperties": False,
-        "required": ["intent", "cart", "pickup_time", "reply"],
+        "required": ["intent", "cart", "pickup_time", "fulfillment", "delivery_address", "remember", "reply"],
         "properties": {
             "intent": {
                 "type": "string",
                 "enum": [i.value for i in Intent],
                 "description": (
-                    "update_order: accepted the usual or changed items/time. "
-                    "confirm_order: explicit yes to place the order as summarized. "
-                    "decline: not interested right now. question: asked something. other: anything else."
+                    "update_order: accepted the usual or changed items/time/fulfillment. "
+                    "confirm_order: explicit yes to place the order exactly as last recapped. "
+                    "decline: not interested right now. question: asked something. "
+                    "handoff: complaint, refund, allergy/medical question, or wants a person. other: anything else."
                 ),
             },
             "cart": {
@@ -74,17 +82,28 @@ def turn_json_schema(menu: Menu) -> dict:
                             "type": "array",
                             "items": {"type": "string", "enum": list(menu.modifiers)},
                         },
-                        "notes": nullable_str,
+                        "notes": {**nullable_str, "description": "Kitchen note, e.g. 'well done'"},
                     },
                 },
             },
             "pickup_time": {
                 **nullable_str,
-                "description": "Requested pickup time, local 24h HH:MM, or null to keep the current one.",
+                "description": "Requested time, local 24h HH:MM, or null to keep the current one.",
+            },
+            "fulfillment": {
+                "type": ["string", "null"],
+                "enum": ["pickup", "delivery", None],
+                "description": "Only set if the customer chose pickup or delivery in this message.",
+            },
+            "delivery_address": {**nullable_str, "description": "Full street address if they gave one."},
+            "remember": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "New lasting preferences worth remembering for next time (e.g. 'likes pizza well done'). Usually empty.",
             },
             "reply": {
                 "type": "string",
-                "description": "Short, casual text back to the customer. Never state prices or totals.",
+                "description": "What you text back. Use {order} {total} {when} {payment} placeholders instead of writing prices.",
             },
         },
     }

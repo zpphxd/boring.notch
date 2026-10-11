@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Conversation{% endblock %}
+{% block body %}
+<h1><a href="/admin/customers/{{ conv.customer.id }}">{{ conv.customer.name or conv.customer.phone_number }}</a>
+  <span class="pill">{{ conv.state | state }}</span>
+  {% if conv.human_takeover %}<span class="pill warn">you're handling this</span>{% endif %}</h1>
+<div class="two">
+  <div>
+    <div class="thread card">
+      {% for m in conv.messages %}
+        <div class="bubble {{ m.role }}">{{ m.content }}</div>
+        <div class="meta {{ 'r' if m.role in ('agent', 'staff') }}">{{ {"customer": "", "agent": "Bruno", "staff": "You", "system": ""}.get(m.role, "") }} {{ local(m.created_at) }}{% if m.channel == 'voice' %} · 📞{% endif %}</div>
+      {% endfor %}
+    </div>
+    <form method="post" action="/admin/conversations/{{ conv.id }}/reply" style="margin-top:12px">
+      <textarea name="text" placeholder="Text {{ conv.customer.first_name }} yourself. Bruno pauses while you're on it." required></textarea>
+      <p><button class="primary">Send as {{ s.restaurant_name }}</button></p>
+    </form>
+  </div>
+  <div>
+    <div class="card">
+      <b>Order</b>
+      {% if summary %}<pre style="white-space:pre-wrap;font:inherit">{{ summary }}</pre>{% else %}<p class="muted">Empty cart.</p>{% endif %}
+      <p class="small muted">{{ conv.fulfillment }}{% if conv.fulfillment == 'delivery' %} → {{ conv.delivery_address }}{% endif %} · started by {{ conv.origin }} · last via {{ conv.last_channel }}</p>
+      {% if order %}<p><span class="pill ok">Placed</span> POS #{{ order.pos_order_id }}{% if order.delivery_tracking_url %} · <a href="{{ order.delivery_tracking_url }}">DoorDash tracking</a>{% endif %}</p>{% endif %}
+    </div>
+    <h2>Who's talking</h2>
+    <form method="post" action="/admin/conversations/{{ conv.id }}/takeover" class="card">
+      {% if conv.human_takeover %}
+        <p>You're handling this one. Bruno won't reply.</p><input type="hidden" name="on" value="0"><button class="primary">Hand back to Bruno</button>
+      {% else %}
+        <p>Bruno is handling this.</p><input type="hidden" name="on" value="1"><button>Take over</button>
+      {% endif %}
+    </form>
+  </div>
+</div>
+{% endblock %}

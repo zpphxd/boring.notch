@@ -9,3 +9,5 @@ venv/
 .pytest_cache/
 data/kitchen_tickets.jsonl
 celerybeat-schedule*
+build/
+dist/

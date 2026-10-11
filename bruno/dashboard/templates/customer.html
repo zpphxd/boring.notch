@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}{{ c.name or c.phone_number }}{% endblock %}
+{% block body %}
+<h1>{{ c.name or "Unknown" }} <span class="muted small">{{ c.phone_number }}</span>
+  {% if t %}<span class="pill {{ t.segment }}">{{ t.segment.replace('_', ' ') }}</span>{% endif %}
+  {% if c.opted_out %}<span class="pill bad">opted out</span>{% endif %}</h1>
+
+<div class="two">
+  <div>
+    <div class="card">
+      <b>What Bruno has learned</b>
+      <table style="border:0;margin-top:6px">
+        <tr><td class="muted">Usual</td><td>{{ describe(t.usual_order_json or []) if t else "—" }}</td></tr>
+        <tr><td class="muted">Orders / lifetime</td><td>{{ c.total_orders }} · {{ c.lifetime_value | money }}{% if t and t.avg_ticket %} · avg {{ t.avg_ticket | money }}{% endif %}</td></tr>
+        <tr><td class="muted">Rhythm</td><td>{% if t and t.avg_days_between_orders %}every ~{{ t.avg_days_between_orders | round(1) }} days{% else %}not enough orders yet{% endif %}</td></tr>
+        <tr><td class="muted">Last order</td><td>{{ t.last_order_date | ago if t else "—" }}</td></tr>
+        <tr><td class="muted">Usually orders</td><td>{% if t and t.preferred_weekday is not none %}{{ ["Mondays","Tuesdays","Wednesdays","Thursdays","Fridays","Saturdays","Sundays"][t.preferred_weekday] }}{% endif %}{% if t and t.typical_pickup_time %} around {{ t.typical_pickup_time | clock }}{% endif %}</td></tr>
+        <tr><td class="muted">Best time to text</td><td>{{ ideal }}</td></tr>
+        <tr><td class="muted">Payment</td><td>{{ payment }}</td></tr>
+        <tr><td class="muted">Address</td><td>{{ c.address or "—" }}</td></tr>
+      </table>
+    </div>
+    <h2>Things they've told us</h2>
+    <form class="card" method="post" action="/admin/customers/{{ c.id }}/memory">
+      <textarea name="memory" placeholder="One per line, e.g. likes it well done">{{ (c.memory or []) | join("\n") }}</textarea>
+      <p><button>Save</button> <span class="small muted">Bruno uses these in every conversation.</span></p>
+    </form>
+    <h2>Actions</h2>
+    <div class="row">
+      {% if not c.opted_out %}
+      <form method="post" action="/admin/customers/{{ c.id }}/reach-out"><input type="hidden" name="mode" value="approve"><button>Draft a text</button></form>
+      <form method="post" action="/admin/customers/{{ c.id }}/reach-out"><input type="hidden" name="mode" value="auto"><button class="primary">Text them now</button></form>
+      {% endif %}
+      <form method="post" action="/admin/customers/{{ c.id }}/optout"><button>{{ "Opt back in" if c.opted_out else "Opt out" }}</button></form>
+    </div>
+  </div>
+  <div>
+    <h2 style="margin-top:0">Conversations</h2>
+    <div class="card">
+      {% for cv in convs %}
+        <div class="row" style="justify-content:space-between"><a href="/admin/conversations/{{ cv.id }}">{{ cv.created_at | ago }} · {{ cv.origin }}</a><span class="pill">{{ cv.state | state }}</span></div>
+      {% else %}<span class="muted">None yet.</span>{% endfor %}
+    </div>
+    <h2>Outreach</h2>
+    <div class="card small">
+      {% for o in sent %}
+        <p><span class="pill">{{ o.strategy }}/{{ o.tone }}</span> <span class="pill {{ 'ok' if o.converted_order_id else '' }}">{{ "ordered" if o.converted_order_id else o.status.replace('_', ' ') }}</span>
+        <span class="muted">{{ (o.sent_at or o.created_at) | ago }}</span><br>“{{ o.message }}”</p>
+      {% else %}<span class="muted">Never texted.</span>{% endfor %}
+    </div>
+    <h2>Orders</h2>
+    <table class="small">
+      {% for o in orders %}<tr><td>{{ o.order_date | ago }}</td><td>{{ describe(o.items_json) or o.raw_items }}</td><td>{{ o.total_amount | money }}</td><td><span class="pill">{{ o.source if o.source != 'bruno' else o.channel }}</span></td></tr>
+      {% else %}<tr><td class="muted">No orders.</td></tr>{% endfor %}
+    </table>
+  </div>
+</div>
+{% endblock %}

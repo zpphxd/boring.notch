@@ -37,8 +37,13 @@ class POSOrder(BaseModel):
     line_items: list[PricedLine]
     subtotal_cents: int
     tax_cents: int
+    delivery_fee_cents: int = 0
     total_cents: int
     payment: POSPayment
+    fulfillment: str = "pickup"  # pickup | delivery (DoorDash courier picks up)
+    delivery_address: str | None = None
+    delivery_id: str | None = None
+    customer_notes: list[str] = []
     created_at: datetime
 
 
@@ -66,9 +71,15 @@ def render_ticket(order: POSOrder) -> str:
         f"Ticket:  {order.external_id}",
         f"Name:    {order.customer.name}",
         f"Phone:   {order.customer.phone}",
-        f"Pickup:  {order.pickup_at.strftime('%a %b %d, %I:%M %p')}",
-        "-" * width,
+        f"Ready:   {order.pickup_at.strftime('%a %b %d, %I:%M %p')}",
     ]
+    if order.fulfillment == "delivery":
+        lines += [f"DELIVERY via DoorDash courier ({order.delivery_id or 'pending'})", f"To: {order.delivery_address}"]
+    else:
+        lines.append("PICKUP")
+    for note in order.customer_notes:
+        lines.append(f"Note: {note}")
+    lines.append("-" * width)
     for li in order.line_items:
         size = f"{li.size.upper()} " if li.size else ""
         head = f"{li.quantity}x {size}{li.name}"
@@ -82,6 +93,7 @@ def render_ticket(order: POSOrder) -> str:
         "-" * width,
         f"{'Subtotal':<{width - 10}}{order.subtotal_cents / 100:>10.2f}",
         f"{'Tax':<{width - 10}}{order.tax_cents / 100:>10.2f}",
+        *([f"{'Delivery':<{width - 10}}{order.delivery_fee_cents / 100:>10.2f}"] if order.delivery_fee_cents else []),
         f"{'TOTAL':<{width - 10}}{order.total_cents / 100:>10.2f}",
         f"Payment: {order.payment.method} ({order.payment.status.replace('_', ' ')})",
         rule,
@@ -154,6 +166,11 @@ class SquarePOS:
                 "source": {"name": f"Bruno ({order.channel})"},
                 "line_items": line_items,
                 "taxes": [{"uid": "sales-tax", "name": "Sales Tax", "percentage": str(tax_pct), "scope": "ORDER"}],
+                **(
+                    {"service_charges": [{"name": "Delivery", "amount_money": money(order.delivery_fee_cents),
+                                          "calculation_phase": "TOTAL_PHASE"}]}
+                    if order.delivery_fee_cents else {}
+                ),
                 "fulfillments": [
                     {
                         "type": "PICKUP",
@@ -165,7 +182,10 @@ class SquarePOS:
                             },
                             "schedule_type": "SCHEDULED",
                             "pickup_at": order.pickup_at.isoformat(),
-                            "note": f"Payment: {order.payment.method} ({order.payment.status})",
+                            "note": (
+                                f"Payment: {order.payment.method} ({order.payment.status})"
+                                + (f" | DoorDash courier to {order.delivery_address}" if order.fulfillment == "delivery" else "")
+                            )[:500],
                         },
                     }
                 ],
@@ -183,8 +203,11 @@ class SquarePOS:
 
 
 def build_pos(settings: Settings) -> POSClient:
-    if settings.pos_provider == "console":
+    provider = settings.pos_provider
+    if provider == "auto":
+        provider = "square" if settings.square_access_token and settings.square_location_id else "console"
+    if provider == "console":
         return ConsolePOS(settings.kitchen_ticket_log)
-    if settings.pos_provider == "square":
+    if provider == "square":
         return SquarePOS(settings)
     raise ValueError(f"Unknown POS_PROVIDER: {settings.pos_provider} (toast/clover adapters not built yet)")

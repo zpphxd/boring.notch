@@ -3,13 +3,21 @@
 Prices are always computed here, never taken from the LLM.
 """
 
+import difflib
 import json
+import re
 from functools import lru_cache
 from pathlib import Path
 
 from pydantic import BaseModel, Field
 
 SIZES = ("small", "medium", "large")
+SIZE_WORDS = {
+    "small": "small", "sm": "small", "personal": "small", '10"': "small", "10 inch": "small",
+    "medium": "medium", "med": "medium", "md": "medium", '12"': "medium", "12 inch": "medium",
+    "large": "large", "lg": "large", "lrg": "large", "xl": "large", '14"': "large", "14 inch": "large",
+    '16"': "large", "16 inch": "large",
+}
 MAX_QUANTITY = 20
 
 
@@ -113,9 +121,59 @@ class Menu:
         self.exclusive_groups: set[str] = set(data.get("exclusive_groups", []))
         self.tax_rate = tax_rate
 
+        self._aliases = sorted(
+            [(a.lower(), "item", i.id) for i in self.items.values() for a in [*i.aliases, i.name]]
+            + [(a.lower(), "mod", m.id) for m in self.modifiers.values() for a in [*m.aliases, m.name]],
+            key=lambda t: -len(t[0]),
+        )
+
     @classmethod
     def load(cls, path: str | Path, tax_rate: float) -> "Menu":
         return cls(json.loads(Path(path).read_text()), tax_rate)
+
+    # ------------------------------------------------------------------ text matching
+    def find(self, text: str, kind: str | None = None) -> tuple[str, str] | None:
+        """Longest alias mentioned in `text` -> ("item"|"mod", id)."""
+        text = text.lower()
+        for alias, k, ident in self._aliases:
+            if (kind is None or k == kind) and re.search(rf"(?<!\w){re.escape(alias)}(?!\w)", text):
+                return k, ident
+        return None
+
+    def parse_item_text(self, text: str, quantity: int = 1) -> CartItem | None:
+        """Map a free-text line from a POS / DoorDash / Grubhub export to a cart item,
+        e.g. 'Lg Pepperoni Pizza' -> pizza(large, [pepperoni])."""
+        raw = text.lower().strip()
+        if not raw:
+            return None
+        size = next(
+            (v for k, v in sorted(SIZE_WORDS.items(), key=lambda kv: -len(kv[0]))
+             if re.search(rf"(?<!\w){re.escape(k)}(?!\w)", raw)),
+            None,
+        )
+        hit = self.find(raw, "item")
+        item_id = hit[1] if hit else None
+        mods = []
+        remaining = raw
+        for alias, k, ident in self._aliases:
+            if k == "mod" and re.search(rf"(?<!\w){re.escape(alias)}(?!\w)", remaining):
+                mods.append(ident)
+                remaining = re.sub(rf"(?<!\w){re.escape(alias)}(?!\w)", " ", remaining)
+        if not item_id and mods and any(self.modifiers[m].group == "topping" for m in mods):
+            item_id = "pizza"
+        if not item_id:
+            names = {a: ident for a, k, ident in self._aliases if k == "item"}
+            close = difflib.get_close_matches(raw, list(names), n=1, cutoff=0.75)
+            if not close:
+                return None
+            item_id = names[close[0]]
+        item = self.items[item_id]
+        allowed = [m for m in dict.fromkeys(mods) if self.modifiers[m].group in item.modifier_groups]
+        if item.sizes:
+            size = size if size in item.sizes else "large"
+        else:
+            size = None
+        return CartItem(item_id=item_id, size=size, quantity=max(1, quantity), modifiers=allowed)
 
     # ------------------------------------------------------------------ validation
     def validate(self, cart: list[CartItem] | list[dict]) -> ValidatedCart:
@@ -194,7 +252,8 @@ class Menu:
     def describe(self, cart: list[CartItem] | list[dict]) -> str:
         """Short human description, e.g. 'large pepperoni pizza and Diet Coke'."""
         parts = []
-        for line in self.validate(cart).lines:
+        lines = sorted(self.validate(cart).lines, key=lambda ln: self.items[ln.item_id].category != "pizza")
+        for line in lines:
             qty = f"{line.quantity} " if line.quantity > 1 else ""
             if self.items[line.item_id].category == "pizza":
                 toppings = [m.name.lower() for m in line.modifiers if self.modifiers[m.id].group == "topping"]
@@ -207,7 +266,10 @@ class Menu:
                 plural = "s" if line.quantity > 1 else ""
                 parts.append(f"{qty}{line.size} {flavor} pizza{plural}")
             else:
-                parts.append(f"{qty}{line.name.split(' (')[0]}")
+                name = line.name.split(" (")[0]
+                if line.quantity > 1 and not name.endswith(("s", "i")):
+                    name += "s"
+                parts.append(f"{qty}{name}")
         if len(parts) <= 1:
             return "".join(parts)
         return ", ".join(parts[:-1]) + " and " + parts[-1]
@@ -218,4 +280,6 @@ def get_menu() -> Menu:
     from bruno.config import get_settings
 
     settings = get_settings()
+    if settings.menu_json:
+        return Menu(json.loads(settings.menu_json), settings.tax_rate)
     return Menu.load(settings.menu_path, settings.tax_rate)

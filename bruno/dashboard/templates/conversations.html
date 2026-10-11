@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Conversations{% endblock %}
+{% block body %}
+<h1>Conversations</h1>
+<div class="tablewrap">
+<table>
+  <tr><th>Customer</th><th>Last message</th><th>Status</th><th>When</th></tr>
+  {% for c in convs %}{% set m = last[c.id] %}
+  <tr>
+    <td><a href="/admin/conversations/{{ c.id }}">{{ c.customer.name or c.customer.phone_number }}</a>
+      {% if c.needs_attention %}<span class="pill bad">needs you</span>{% elif c.human_takeover %}<span class="pill warn">you're handling</span>{% endif %}</td>
+    <td class="small">{% if m %}<b>{{ {"customer": "Them", "agent": "Bruno", "staff": "You"}.get(m.role, m.role) }}:</b> {{ m.content[:110] }}{% endif %}</td>
+    <td><span class="pill {{ 'ok' if c.state == 'STATE_COMPLETED' else '' }}">{{ c.state | state }}</span></td>
+    <td class="small muted">{{ c.updated_at | ago }}</td>
+  </tr>
+  {% else %}<tr><td colspan="4" class="muted">No conversations yet.</td></tr>{% endfor %}
+</table>
+</div>
+{% endblock %}

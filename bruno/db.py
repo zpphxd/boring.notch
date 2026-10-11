@@ -8,7 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
-from bruno.config import get_settings
+from bruno.config import env_settings
 
 
 class Base(DeclarativeBase):
@@ -24,7 +24,7 @@ def make_engine(url: str) -> Engine:
 
 @lru_cache
 def get_engine() -> Engine:
-    return make_engine(get_settings().database_url)
+    return make_engine(env_settings().database_url)
 
 
 @lru_cache

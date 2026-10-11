@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Menu{% endblock %}
+{% block body %}
+<h1>Menu</h1>
+<p class="muted">Bruno can only sell what's here, and prices always come from here, never from the AI. Prices are in cents. <code>aliases</code> are the nicknames customers (and your POS export) use.</p>
+<div class="two">
+  <div>
+    <table>
+      <tr><th>Item</th><th>Price</th></tr>
+      {% for i in menu.items.values() %}
+        <tr><td><b>{{ i.name }}</b> <span class="muted small">{{ i.id }}</span><br><span class="small muted">{{ i.aliases | join(", ") }}</span></td>
+          <td class="small">{% if i.sizes %}{% for sz, c in i.sizes.items() %}{{ sz }} {{ money(c) }}<br>{% endfor %}{% else %}{{ money(i.price or 0) }}{% endif %}</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+  <form method="post" action="/admin/menu">
+    <textarea class="code" name="menu_json">{{ raw }}</textarea>
+    <div class="row" style="margin-top:10px">
+      <button class="primary" type="submit">Save menu</button>
+      <button type="submit" name="reset" value="1">Reset to default</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

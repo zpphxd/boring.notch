@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Outreach{% endblock %}
+{% block body %}
+<h1>Outreach</h1>
+
+<div class="card">
+  <form method="post" action="/admin/outreach/autopilot" class="row">
+    <b>Autopilot is {{ "ON" if s.autopilot_enabled else "OFF" }}</b>
+    <select name="mode" style="max-width:340px">
+      <option value="approve" {{ 'selected' if s.outreach_mode == 'approve' }}>Draft texts, I approve each one</option>
+      <option value="auto" {{ 'selected' if s.outreach_mode == 'auto' }}>Send on its own</option>
+    </select>
+    {% if s.autopilot_enabled %}
+      <button name="enabled" value="1">Update</button><button name="enabled" value="0">Turn off</button>
+    {% else %}
+      <button class="primary" name="enabled" value="1">Turn on</button><input type="hidden" name="_" value="">
+    {% endif %}
+  </form>
+  <p class="small muted">Bruno texts each customer at their own best time ({{ s.send_window_start }}–{{ s.send_window_end }}), max {{ s.daily_outreach_cap }} a day, never more than once every {{ s.outreach_cooldown_days }} days, and never anyone who opted out or is mid-conversation.</p>
+</div>
+
+<h2>Waiting for your OK {% if pending %}<span class="pill warn">{{ pending|length }}</span>{% endif %}</h2>
+{% for o in pending %}
+  <div class="card draft" style="margin-bottom:10px">
+    <div class="row" style="justify-content:space-between">
+      <span><a href="/admin/customers/{{ o.customer.id }}"><b>{{ o.customer.name or o.customer.phone_number }}</b></a>
+        <span class="pill">{{ o.strategy.replace('_', ' ') }}</span> <span class="pill">{{ o.tone }}</span>
+        <span class="small muted">{{ "written by AI" if o.author == "llm" else "template" }}</span></span>
+      <span class="small muted">drafted {{ o.created_at | ago }}</span>
+    </div>
+    <form method="post" action="/admin/outreach/{{ o.id }}/approve">
+      <textarea name="message" style="margin-top:8px">{{ o.message }}</textarea>
+      <div class="row" style="margin-top:8px"><button class="primary">Send</button>
+        <button formaction="/admin/outreach/{{ o.id }}/skip">Skip</button></div>
+    </form>
+  </div>
+{% else %}<p class="muted">No drafts waiting.</p>{% endfor %}
+
+<div class="two">
+  <div>
+    <h2>Who's due</h2>
+    <form method="post" action="/admin/outreach/run" class="row" style="margin-bottom:10px">
+      <input type="number" name="count" value="5" min="1" max="50" style="max-width:90px">
+      <button>{{ "Draft" if s.outreach_mode == "approve" else "Send" }} for the top ones now</button>
+    </form>
+    <table class="small">
+      <tr><th>Customer</th><th>Why</th><th>Best time</th></tr>
+      {% for c, when in due %}
+        <tr><td><a href="/admin/customers/{{ c.id }}">{{ c.name or c.phone_number }}</a></td>
+          <td><span class="pill {{ c.cadence.segment }}">{{ c.cadence.segment.replace('_', ' ') }}</span> {{ describe(c.cadence.usual_order_json or []) }}</td>
+          <td>{{ when.strftime("%I:%M %p").lstrip("0") }}</td></tr>
+      {% else %}<tr><td colspan="3" class="muted">Nobody's due right now.</td></tr>{% endfor %}
+    </table>
+  </div>
+  <div>
+    <h2>What's working</h2>
+    <p class="small muted">Bruno tries different approaches and shifts toward what turns into orders (an order within 48h of a text counts).</p>
+    <table class="small">
+      <tr><th>Approach</th><th>Sent</th><th>Replied</th><th>Ordered</th><th>Revenue</th></tr>
+      {% for a in arms %}
+        <tr><td>{{ a.arm.replace(':', ' · ').replace('_', ' ') }}</td><td>{{ a.sent }}</td><td>{{ a.replies }}</td>
+          <td>{{ a.wins }}{% if a.wins + a.losses %} ({{ a.conversion | pct }}){% endif %}</td><td>{{ a.revenue | money }}</td></tr>
+      {% else %}<tr><td colspan="5" class="muted">No data yet. It learns as texts go out.</td></tr>{% endfor %}
+    </table>
+    <h2>Recently sent</h2>
+    {% for o in recent %}
+      <div class="card small" style="margin-bottom:8px">
+        <b>{{ o.customer.name or o.customer.phone_number }}</b> <span class="muted">{{ o.sent_at | ago }}</span>
+        {% if o.converted_order_id %}<span class="pill ok">ordered {{ o.revenue | money }}</span>{% elif o.opted_out %}<span class="pill bad">opted out</span>{% elif o.replied_at %}<span class="pill">replied</span>{% endif %}
+        <br>“{{ o.message }}”
+      </div>
+    {% else %}<p class="muted">Nothing sent yet.</p>{% endfor %}
+  </div>
+</div>
+{% endblock %}

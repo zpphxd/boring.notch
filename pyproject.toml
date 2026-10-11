@@ -17,7 +17,10 @@ dependencies = [
     "httpx>=0.27",
     "openai>=1.40",
     "anthropic>=0.40",
-    "celery[redis]>=5.3",
+    "jinja2>=3.1",
+    "python-multipart>=0.0.9",
+    "itsdangerous>=2.1",
+    "python-dateutil>=2.8",
     "tzdata",
 ]
 
@@ -30,3 +33,6 @@ include = ["bruno*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.setuptools.package-data]
+bruno = ["dashboard/templates/*.html", "dashboard/static/*"]

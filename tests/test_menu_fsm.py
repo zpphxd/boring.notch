@@ -98,3 +98,27 @@ def test_cannot_skip_to_pos_injection():
         assert_transition(State.NEGOTIATING_MODIFICATIONS, State.POS_INJECTION)
     with pytest.raises(InvalidTransition):
         assert_transition(State.COMPLETED, State.AWAITING_RESPONSE)
+
+
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        ("Lg Pepperoni Pizza", ("pizza", "large", ["pepperoni"])),
+        ('14" Sausage & Mushroom Pie', ("pizza", "large", ["mushroom", "sausage"])),
+        ("Medium Margherita", ("margherita", "medium", [])),
+        ("Diet Coke 20oz", ("diet_coke", None, [])),
+        ("BBQ Wings", ("wings", None, ["bbq_sauce"])),
+        ("Garlic Knots (6)", ("garlic_knots", None, [])),
+    ],
+)
+def test_parse_item_text(menu, text, expected):
+    item = menu.parse_item_text(text)
+    assert (item.item_id, item.size, sorted(item.modifiers)) == (expected[0], expected[1], sorted(expected[2]))
+
+
+def test_parse_item_text_unknown(menu):
+    assert menu.parse_item_text("Mystery Calzone") is None
+
+
+def test_handoff_keeps_state():
+    assert next_state(State.CONFIRMING_PAYMENT, Intent.HANDOFF, cart_ready=True, cart_changed=False) == State.CONFIRMING_PAYMENT

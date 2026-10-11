@@ -1,80 +1,95 @@
 """Deterministic, offline stand-in for the LLM.
 
 Handles the common re-order phrasings ("yes", "swap pepperoni for mushroom",
-"add a diet coke", "make it a medium", "around 6:30", "no thanks") using the
-menu's aliases. Used by tests and for running the demo without API keys.
+"add a diet coke", "make it a medium", "around 6:30", "deliver to 12 Main St",
+"no thanks") using the menu's aliases. It powers the tests and lets the whole
+product run before any API key is entered; free-form writing (outreach copy)
+falls back to Bruno's built-in templates.
 """
 
 import re
 
 from bruno.fsm import Intent
-from bruno.llm.base import AgentTurn, TurnContext
-from bruno.menu import SIZES, CartItem, Menu
+from bruno.llm.base import AgentTurn, LLMError, TurnContext
+from bruno.menu import CartItem, Menu
 
 YES = re.compile(
-    r"^(y|yes|yep|yeah|ya|yup|sure|ok|okay|k|perfect|sounds good|do it|let'?s do it|"
-    r"place it|confirm|go for it|please|absolutely|the usual|usual|yes please)\b"
+    r"^(y|yes|yep|yeah|ya|yup|sure|ok|okay|k|perfect|sounds good|do it|let'?s do it|put it in|send it|"
+    r"place it|confirm|go for it|please|absolutely|the usual|usual|yes please|bet|fire it)\b"
 )
 NO = re.compile(r"^(no|nah|nope|not today|not tonight|no thanks|pass|maybe next time|i'?m good)\b")
 TIME = re.compile(r"\b(?:at|around|by|for|@)\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b")
+HANDOFF = re.compile(
+    r"(talk|speak) to (a |the )?(person|human|manager|someone|real)|refund|complain|wrong order|"
+    r"was cold|allerg|are you a (bot|robot|real)",
+)
+ADDRESS = re.compile(
+    r"\b(\d{1,6}\s+[\w .'-]+?\b(?:st|street|ave|avenue|rd|road|blvd|ln|lane|dr|drive|way|ct|court|pl|place|pkwy)\b\.?"
+    r"(?:[\w ,#.-]*)?)",
+    re.I,
+)
+REMEMBER = re.compile(r"\b(i (?:like|love|prefer) (?:it |them |my pizza )?[\w -]+|always [\w -]+)")
 NUMBERS = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "another": 1}
 
 
 class MockLLM:
     name = "mock"
 
+    def write(self, system: str, prompt: str) -> str:
+        raise LLMError("mock model does not write free text; using templates")
+
     def generate_turn(self, ctx: TurnContext) -> AgentTurn:
         menu = ctx.menu
         text = ctx.customer_message.lower().strip()
+
+        if HANDOFF.search(text):
+            return AgentTurn(
+                intent=Intent.HANDOFF, cart=ctx.current_cart,
+                reply="Totally get it. Let me grab someone from the team, they'll text you back here in a few.",
+            )
+
         cart = [c.model_copy(deep=True) for c in ctx.current_cart]
         base_from_usual = not cart and bool(ctx.usual_order)
         if base_from_usual:
             cart = [c.model_copy(deep=True) for c in ctx.usual_order]
 
-        if NO.match(text) and not _find_kind(text, menu):
+        if NO.match(text) and not menu.find(text):
             return AgentTurn(
-                intent=Intent.DECLINE, cart=ctx.current_cart, pickup_time=None,
+                intent=Intent.DECLINE, cart=ctx.current_cart,
                 reply="No worries at all! We'll be here whenever the craving hits 🍕",
             )
 
+        address_match = ADDRESS.search(ctx.customer_message)
+        address = address_match.group(1).strip(" .") if address_match else None
+        order_text = text.replace(address.lower(), " ") if address else text
+
         changed = False
-        for clause in re.split(r",|;|!|\.(?!\d)|\band (?=(?:then|add|swap|switch|make|remove|drop|plus)\b)", text):
+        for clause in re.split(r",|;|!|\.(?!\d)|\band (?=(?:then|add|swap|switch|make|remove|drop|plus)\b)", order_text):
             changed |= _apply_clause(clause.strip(), cart, menu)
 
-        pickup = _parse_time(text)
+        pickup = _parse_time(order_text)
+        fulfillment = None
+        if re.search(r"\bdeliver(y|ed)?\b|\bbring it\b", text):
+            fulfillment = "delivery"
+        elif re.search(r"\bpick ?(it )?up\b|\bpickup\b", text):
+            fulfillment = "pickup"
+        if address and not fulfillment:
+            fulfillment = "delivery"
+        remember = [m.group(1).strip() for m in REMEMBER.finditer(text)][:1]
 
-        if changed or (base_from_usual and (pickup or re.search(r"\busual\b", text))):
-            return AgentTurn(intent=Intent.UPDATE_ORDER, cart=cart, pickup_time=pickup, reply="You got it!")
-        if YES.match(text):
-            return AgentTurn(intent=Intent.CONFIRM_ORDER, cart=cart, pickup_time=pickup, reply="Awesome!")
-        if pickup:
+        def turn(intent: Intent, c: list[CartItem], reply: str) -> AgentTurn:
             return AgentTurn(
-                intent=Intent.UPDATE_ORDER, cart=ctx.current_cart, pickup_time=pickup, reply="Done, updated the time."
+                intent=intent, cart=c, pickup_time=pickup, fulfillment=fulfillment,
+                delivery_address=address, remember=remember, reply=reply,
             )
-        return AgentTurn(
-            intent=Intent.QUESTION, cart=ctx.current_cart, pickup_time=None,
-            reply="Happy to help! What can I get started for you?",
-        )
 
-
-def _aliases(menu: Menu) -> list[tuple[str, str, str]]:
-    out = [(a, "item", i.id) for i in menu.items.values() for a in i.aliases]
-    out += [(a, "mod", m.id) for m in menu.modifiers.values() for a in m.aliases]
-    return sorted(out, key=lambda t: -len(t[0]))
-
-
-def _find(segment: str, menu: Menu, kind: str | None = None) -> str | None:
-    for alias, k, ident in _aliases(menu):
-        if (kind is None or k == kind) and re.search(rf"\b{re.escape(alias)}\b", segment):
-            return ident
-    return None
-
-
-def _find_kind(segment: str, menu: Menu) -> tuple[str, str] | None:
-    for alias, k, ident in _aliases(menu):
-        if re.search(rf"\b{re.escape(alias)}\b", segment):
-            return k, ident
-    return None
+        if changed or (base_from_usual and (pickup or fulfillment or re.search(r"\busual\b", text))):
+            return turn(Intent.UPDATE_ORDER, cart, "You got it!")
+        if YES.match(text):
+            return turn(Intent.CONFIRM_ORDER, cart, "Awesome!")
+        if pickup or fulfillment or address or remember:
+            return turn(Intent.UPDATE_ORDER, ctx.current_cart, "Done.")
+        return turn(Intent.QUESTION, ctx.current_cart, "Happy to help! What can I get started for you?")
 
 
 def _pizzas(cart: list[CartItem], menu: Menu) -> list[CartItem]:
@@ -100,7 +115,7 @@ def _apply_clause(clause: str, cart: list[CartItem], menu: Menu) -> bool:
 
     remove = re.search(r"\b(?:remove|drop|without|hold the|no more|minus|skip the)\s+(?:the\s+)?(.+)", clause)
     if remove:
-        found = _find_kind(remove.group(1), menu)
+        found = menu.find(remove.group(1))
         if not found:
             return False
         kind, ident = found
@@ -115,7 +130,7 @@ def _apply_clause(clause: str, cart: list[CartItem], menu: Menu) -> bool:
         cart[:] = [c for c in cart if c.item_id != ident]
         return len(cart) != before
 
-    add = re.search(r"\b(?:add|plus|throw in|and)\s+(.+)", clause)
+    add = re.search(r"\b(?:add|plus|throw in|and|get|want|grab)\s+(.+)", clause)
     if add:
         changed = False
         for seg in re.split(r"\band\b", add.group(1)):
@@ -125,7 +140,7 @@ def _apply_clause(clause: str, cart: list[CartItem], menu: Menu) -> bool:
 
 
 def _swap(old_text: str, new_text: str, cart: list[CartItem], menu: Menu) -> bool:
-    old, new = _find_kind(old_text, menu), _find_kind(new_text, menu)
+    old, new = menu.find(old_text), menu.find(new_text)
     if not old or not new:
         return False
     if old[0] == "mod" and new[0] == "mod":
@@ -147,7 +162,7 @@ def _swap(old_text: str, new_text: str, cart: list[CartItem], menu: Menu) -> boo
 
 
 def _add(segment: str, cart: list[CartItem], menu: Menu) -> bool:
-    found = _find_kind(segment, menu)
+    found = menu.find(segment)
     if not found:
         return False
     kind, ident = found
@@ -158,19 +173,20 @@ def _add(segment: str, cart: list[CartItem], menu: Menu) -> bool:
         if ident not in pizzas[0].modifiers:
             pizzas[0].modifiers.append(ident)
         return True
-    qty_match = re.match(r"(\d+|a|an|one|two|three|four|another)\b", segment)
+    qty_match = re.match(r"(?:me |us )?(\d+|a|an|one|two|three|four|another)\b", segment)
     qty = 1
     if qty_match:
         word = qty_match.group(1)
         qty = int(word) if word.isdigit() else NUMBERS[word]
-    size = next((s for s in SIZES if re.search(rf"\b{s}\b", segment)), None)
-    if menu.items[ident].sizes and not size:
-        size = "large"
+    parsed = menu.parse_item_text(segment, qty)
+    item = parsed if parsed and parsed.item_id == ident else CartItem(item_id=ident, quantity=qty)
+    if menu.items[ident].sizes and not item.size:
+        item.size = "large"
     for c in cart:
-        if c.item_id == ident and c.size == size and not c.modifiers:
-            c.quantity += qty
+        if c.item_id == item.item_id and c.size == item.size and c.modifiers == item.modifiers:
+            c.quantity += item.quantity
             return True
-    cart.append(CartItem(item_id=ident, size=size, quantity=qty))
+    cart.append(item)
     return True
 
 

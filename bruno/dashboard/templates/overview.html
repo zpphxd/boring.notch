@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Overview{% endblock %}
+{% block body %}
+<h1>Hey{% if s.agent_name %}, here's what {{ s.agent_name }} has been up to{% endif %}</h1>
+
+<div class="grid">
+  <div class="card stat"><div class="n">{{ stats.bruno_revenue | money }}</div><div class="l">Revenue through Bruno (30 days)</div></div>
+  <div class="card stat"><div class="n">{{ stats.bruno_orders }}</div><div class="l">Orders taken by text/phone</div></div>
+  <div class="card stat"><div class="n">{{ stats.sent }}</div><div class="l">Outreach texts sent</div></div>
+  <div class="card stat"><div class="n">{{ stats.reply_rate | pct }}</div><div class="l">Reply rate</div></div>
+  <div class="card stat"><div class="n">{{ stats.conversion_rate | pct }}</div><div class="l">Texts that became orders</div></div>
+  <div class="card stat"><div class="n">{{ stats.attributed_revenue | money }}</div><div class="l">Revenue won back by outreach</div></div>
+</div>
+
+<div class="two">
+  <div>
+    <h2>Setup</h2>
+    <div class="card">
+      {% for label, done, href in checklist %}
+        <div class="check {{ 'done' if done }}"><span class="dot"></span><a href="{{ href }}">{{ label }}</a></div>
+      {% endfor %}
+      <p class="small muted">AI: <b>{{ llm_name }}</b>{% if llm_name == "mock" %} (offline practice mode until you add an OpenAI or Anthropic key){% endif %}.
+        {{ customers }} customers, {{ orders }} orders on file.</p>
+    </div>
+
+    <h2>Your customers</h2>
+    <div class="card">
+      {% for seg, label in [("regular", "On rhythm"), ("drifting", "Overdue for their usual"), ("lapsed", "Haven't been back in a while"),
+                            ("one_time", "Ordered once"), ("new", "New"), ("dormant", "Dormant")] %}
+        <div class="row" style="justify-content:space-between"><a href="/admin/customers?segment={{ seg }}">{{ label }}</a>
+          <span class="pill {{ seg }}">{{ segments.get(seg, 0) }}</span></div>
+      {% endfor %}
+      {% if stats.pending_approval %}<p><a class="btn primary" href="/admin/outreach">{{ stats.pending_approval }} text(s) waiting for your OK</a></p>{% endif %}
+    </div>
+  </div>
+  <div>
+    <h2>Needs you {% if attention %}<span class="pill bad">{{ attention|length }}</span>{% endif %}</h2>
+    <div class="card">
+      {% for c in attention %}
+        <div class="row" style="justify-content:space-between">
+          <a href="/admin/conversations/{{ c.id }}">{{ c.customer.name or c.customer.phone_number }}</a>
+          <span class="small muted">{{ c.updated_at | ago }}</span></div>
+      {% else %}<p class="muted">Nothing right now. Bruno's handling it.</p>{% endfor %}
+    </div>
+    <h2>Latest conversations</h2>
+    <div class="card">
+      {% for c in recent %}
+        <div class="row" style="justify-content:space-between">
+          <a href="/admin/conversations/{{ c.id }}">{{ c.customer.name or c.customer.phone_number }}</a>
+          <span><span class="pill">{{ c.state | state }}</span> <span class="small muted">{{ c.updated_at | ago }}</span></span></div>
+      {% else %}<p class="muted">No conversations yet.</p>{% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

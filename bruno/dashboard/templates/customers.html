@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Customers{% endblock %}
+{% block body %}
+<h1>Customers</h1>
+<form class="row" method="get">
+  <input name="q" value="{{ q }}" placeholder="Search name or phone" style="max-width:280px">
+  <select name="segment" style="max-width:220px">
+    <option value="">All segments</option>
+    {% for seg in ["regular", "drifting", "lapsed", "one_time", "new", "dormant"] %}
+      <option value="{{ seg }}" {{ 'selected' if seg == segment }}>{{ seg.replace('_', ' ') }} ({{ segments.get(seg, 0) }})</option>
+    {% endfor %}
+  </select>
+  <button>Filter</button>
+</form>
+<div class="tablewrap" style="margin-top:14px">
+<table>
+  <tr><th>Customer</th><th>Segment</th><th>Orders</th><th>Last order</th><th>Rhythm</th><th>Usual</th><th>Lifetime</th></tr>
+  {% for c, t in rows %}
+  <tr>
+    <td><a href="/admin/customers/{{ c.id }}">{{ c.name or "—" }}</a><br><span class="small muted">{{ c.phone_number }}</span>
+      {% if c.opted_out %}<span class="pill bad">opted out</span>{% endif %}</td>
+    <td><span class="pill {{ t.segment if t }}">{{ (t.segment if t else "new").replace('_', ' ') }}</span></td>
+    <td>{{ c.total_orders }}</td>
+    <td class="small">{{ t.last_order_date | ago if t else "—" }}</td>
+    <td class="small">{% if t and t.avg_days_between_orders %}every ~{{ t.avg_days_between_orders | round | int }}d{% else %}—{% endif %}</td>
+    <td class="small">{{ describe(t.usual_order_json or []) if t else "" }}</td>
+    <td>{{ c.lifetime_value | money }}</td>
+  </tr>
+  {% else %}<tr><td colspan="7" class="muted">No customers yet. <a href="/admin/import">Import your order history</a>.</td></tr>{% endfor %}
+</table>
+</div>
+{% endblock %}

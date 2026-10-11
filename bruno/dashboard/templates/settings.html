@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block body %}
+<h1>Settings</h1>
+<p class="muted">Paste your keys here and hit Save. Bruno switches to them right away. No restart, no code.</p>
+
+<div class="grid">
+  {% for k, v in status.items() %}<div class="card stat"><div class="l">{{ k }}</div><div><b>{{ v }}</b></div></div>{% endfor %}
+</div>
+<div class="row" style="margin-top:12px">
+  <form method="post" action="/admin/settings/test/ai"><button>Test AI</button></form>
+  <form method="post" action="/admin/settings/test/text"><button>Send me a test text</button></form>
+</div>
+
+<form method="post" action="/admin/settings">
+  {% for group, items in groups.items() %}
+    <h2 id="{{ group | lower | replace(' ', '-') | replace('(', '') | replace(')', '') }}">{{ group }}</h2>
+    <div class="card">
+      {% for it in items %}{% set f = it.f %}
+        <label>{{ f.label }} {% if f.help %}<span class="help">· {{ f.help }}</span>{% endif %}</label>
+        {% if f.secret %}
+          <div class="row">
+            <input type="password" name="{{ f.key }}" placeholder="{{ '•••••••• saved, leave blank to keep' if it.is_set else 'paste key' }}" autocomplete="off" style="flex:1">
+            {% if it.is_set %}<label class="small" style="margin:0;font-weight:400"><input type="checkbox" name="clear_{{ f.key }}"> remove</label>{% endif %}
+          </div>
+        {% elif f.kind == "bool" %}
+          <input type="hidden" name="{{ f.key }}__present" value="1">
+          <select name="{{ f.key }}"><option value="true" {{ 'selected' if it.value }}>On</option><option value="false" {{ 'selected' if not it.value }}>Off</option></select>
+        {% elif f.kind == "select" %}
+          <select name="{{ f.key }}">{% for o in f.options %}<option {{ 'selected' if it.value == o }}>{{ o }}</option>{% endfor %}</select>
+        {% else %}
+          <input type="{{ 'number' if f.kind == 'number' else 'text' }}" step="any" name="{{ f.key }}" value="{{ it.value }}">
+        {% endif %}
+      {% endfor %}
+    </div>
+  {% endfor %}
+  <p><button class="primary" type="submit">Save settings</button></p>
+</form>
+
+<h2>Webhook URLs</h2>
+<p class="muted small">Paste these into Sendblue and Retell. Set a webhook secret above first. {% if not s.public_base_url %}Set PUBLIC_BASE_URL if these don't show your public address.{% endif %}</p>
+<table>{% for k, v in urls.items() %}<tr><td>{{ k }}</td><td class="mono">{{ v }}</td></tr>{% endfor %}</table>
+{% endblock %}

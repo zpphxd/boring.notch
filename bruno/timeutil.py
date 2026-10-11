@@ -52,12 +52,27 @@ def earliest_pickup(now_utc: datetime, tz: str, prep_minutes: int) -> datetime:
     return round_up_to(to_local(now_utc, tz) + timedelta(minutes=prep_minutes), 15)
 
 
-def resolve_pickup(hhmm: str | None, now_utc: datetime, tz: str, prep_minutes: int) -> str:
-    """Return a valid 'HH:MM' pickup time no earlier than now + prep time."""
+def resolve_pickup(
+    hhmm: str | None, now_utc: datetime, tz: str, prep_minutes: int, opens: str | None = None
+) -> str:
+    """Return a valid 'HH:MM' pickup time no earlier than now + prep time (or opening time)."""
     earliest = earliest_pickup(now_utc, tz, prep_minutes)
+    open_at = parse_hhmm(opens)
+    if open_at:
+        opening = earliest.replace(hour=open_at[0], minute=open_at[1]) + timedelta(minutes=15)
+        earliest = max(earliest, opening)
     parsed = parse_hhmm(hhmm)
     if parsed:
         wanted = earliest.replace(hour=parsed[0], minute=parsed[1])
         if wanted >= earliest:
             return wanted.strftime("%H:%M")
     return earliest.strftime("%H:%M")
+
+
+def display_local(dt: datetime | None, tz: str) -> str | None:
+    """Any datetime (naive = UTC) -> casual local clock time, e.g. '6:45'."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    return display_time(dt.astimezone(ZoneInfo(tz)).strftime("%H:%M"))

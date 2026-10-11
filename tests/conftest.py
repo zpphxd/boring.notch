@@ -1,3 +1,5 @@
+import os
+import random
 from datetime import datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -26,29 +28,43 @@ DAVE_PHONE = "+15551230001"
 PEPPERONI = [{"item_id": "pizza", "size": "large", "quantity": 1, "modifiers": ["pepperoni"], "notes": None}]
 
 
-@pytest.fixture
-def settings() -> Settings:
-    return Settings(
+def make_settings(**overrides) -> Settings:
+    base = dict(
         _env_file=None,
         database_url="sqlite://",
         menu_path=str(ROOT / "data/menu.json"),
         llm_provider="mock",
         messaging_provider="console",
         pos_provider="console",
-        include_opt_out_footer=True,
+        human_delays=False,
         webhook_secret=None,
+        admin_password=None,
+        restaurant_phone="+15550009999",
     )
+    base.update(overrides)
+    return Settings(**base)
+
+
+@pytest.fixture
+def settings() -> Settings:
+    return make_settings()
 
 
 @pytest.fixture
 def session_factory():
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    """In-memory SQLite by default; set BRUNO_TEST_DATABASE_URL to run against Postgres."""
     from bruno import models  # noqa: F401
 
+    url = os.environ.get("BRUNO_TEST_DATABASE_URL")
+    if url:
+        engine = create_engine(url)
+        with engine.begin() as conn:
+            conn.exec_driver_sql("DROP SCHEMA public CASCADE; CREATE SCHEMA public")
+    else:
+        engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(engine)
-    return sessionmaker(bind=engine, expire_on_commit=False)
+    yield sessionmaker(bind=engine, expire_on_commit=False)
+    engine.dispose()
 
 
 @pytest.fixture
@@ -67,6 +83,9 @@ def deps(settings) -> Deps:
         messenger=ConsoleMessenger(echo=False),
         pos=ConsolePOS(echo=False),
         payments=MockPaymentProvider(),
+        delivery=None,
+        rng=random.Random(1),
+        sleep=lambda _: None,
     )
 
 
@@ -89,6 +108,7 @@ def make_customer(
         phone_number=phone,
         payment_token="tok_test" if card else None,
         card_label="Visa •4242" if card else None,
+        memory=[],
     )
     session.add(customer)
     session.flush()

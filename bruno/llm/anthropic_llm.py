@@ -51,3 +51,15 @@ class AnthropicLLM:
             raise
         except Exception as exc:
             raise LLMError(str(exc)) from exc
+
+    def write(self, system: str, prompt: str) -> str:
+        try:
+            resp = self.client.messages.create(
+                model=self.model,
+                max_tokens=400,
+                system=system,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            return "".join(b.text for b in resp.content if b.type == "text").strip()
+        except Exception as exc:
+            raise LLMError(str(exc)) from exc

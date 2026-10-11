@@ -37,3 +37,14 @@ class OpenAILLM:
             raise
         except Exception as exc:  # network, rate limit, bad JSON
             raise LLMError(str(exc)) from exc
+
+    def write(self, system: str, prompt: str) -> str:
+        try:
+            resp = self.client.chat.completions.create(
+                model=self.model,
+                temperature=0.9,
+                messages=[{"role": "system", "content": system}, {"role": "user", "content": prompt}],
+            )
+            return (resp.choices[0].message.content or "").strip()
+        except Exception as exc:
+            raise LLMError(str(exc)) from exc

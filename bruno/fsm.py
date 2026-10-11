@@ -15,6 +15,7 @@ class State(StrEnum):
     AWAITING_RESPONSE = "STATE_AWAITING_RESPONSE"
     NEGOTIATING_MODIFICATIONS = "STATE_NEGOTIATING_MODIFICATIONS"
     CONFIRMING_PAYMENT = "STATE_CONFIRMING_PAYMENT"
+    AWAITING_PAYMENT = "STATE_AWAITING_PAYMENT"  # pay link sent, waiting on Stripe
     POS_INJECTION = "STATE_POS_INJECTION"
     # Terminal states
     COMPLETED = "STATE_COMPLETED"
@@ -28,6 +29,7 @@ class Intent(StrEnum):
     CONFIRM_ORDER = "confirm_order"  # explicit "yes, place it"
     DECLINE = "decline"  # not today / no thanks
     QUESTION = "question"  # asked something, no order change
+    HANDOFF = "handoff"  # complaint, refund, allergy question, wants a person
     OTHER = "other"
 
 
@@ -49,6 +51,14 @@ TRANSITIONS: dict[State, set[State]] = {
         *_ACTIVE_EXITS,
     },
     State.CONFIRMING_PAYMENT: {
+        State.CONFIRMING_PAYMENT,
+        State.NEGOTIATING_MODIFICATIONS,
+        State.AWAITING_PAYMENT,
+        State.POS_INJECTION,
+        *_ACTIVE_EXITS,
+    },
+    State.AWAITING_PAYMENT: {
+        State.AWAITING_PAYMENT,
         State.CONFIRMING_PAYMENT,
         State.NEGOTIATING_MODIFICATIONS,
         State.POS_INJECTION,
@@ -86,6 +96,15 @@ def next_state(
     """
     if intent == Intent.DECLINE:
         return State.DECLINED
+
+    if intent == Intent.HANDOFF:
+        return current  # a person takes it from here; the order state doesn't move
+
+    if current == State.AWAITING_PAYMENT:
+        # Only a paid Stripe webhook moves this forward; changes need a new recap.
+        if cart_changed:
+            return State.CONFIRMING_PAYMENT if cart_ready else State.NEGOTIATING_MODIFICATIONS
+        return State.AWAITING_PAYMENT
 
     if (
         intent == Intent.CONFIRM_ORDER

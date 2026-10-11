@@ -34,6 +34,10 @@ class Messenger(Protocol):
         """Send a text; returns the provider's message id when available."""
         ...
 
+    def typing(self, to: str) -> None:
+        """Show the '...' typing bubble (best effort)."""
+        ...
+
 
 @dataclass
 class ConsoleMessenger:
@@ -46,6 +50,9 @@ class ConsoleMessenger:
         self.sent.append((to, text))
         if self.echo:
             print(f"\n📱  → {to}\n{text}\n")
+        return None
+
+    def typing(self, to: str) -> None:
         return None
 
 
@@ -79,6 +86,15 @@ class SendblueMessenger:
             raise MessagingError(f"Sendblue error: {data.get('error_message')}")
         return data.get("message_handle")
 
+    def typing(self, to: str) -> None:
+        body: dict = {"number": to}
+        if self.settings.sendblue_from_number:
+            body["from_number"] = self.settings.sendblue_from_number
+        try:
+            self.client.post("/api/send-typing-indicator", json=body, headers=self.headers, timeout=5)
+        except httpx.HTTPError:
+            pass  # cosmetic only
+
 
 @dataclass
 class InboundText:
@@ -107,8 +123,11 @@ def parse_sendblue_inbound(payload: dict) -> InboundText | None:
 
 
 def build_messenger(settings: Settings) -> Messenger:
-    if settings.messaging_provider == "sendblue":
+    provider = settings.messaging_provider
+    if provider == "auto":
+        provider = "sendblue" if settings.sendblue_ready else "console"
+    if provider == "sendblue":
         return SendblueMessenger(settings)
-    if settings.messaging_provider == "console":
+    if provider == "console":
         return ConsoleMessenger()
     raise ValueError(f"Unknown MESSAGING_PROVIDER: {settings.messaging_provider}")

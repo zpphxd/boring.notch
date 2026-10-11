@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Import history{% endblock %}
+{% block body %}
+<h1>Teach Bruno your customers</h1>
+<p class="muted">Upload an order export. Bruno learns each customer's rhythm, usual order, favorite items and typical time from it. Re-uploading the same file is safe: duplicate orders are skipped.</p>
+
+<div class="two">
+  <form class="card" method="post" action="/admin/import" enctype="multipart/form-data">
+    <label>CSV file</label>
+    <input type="file" name="file" accept=".csv,text/csv" required>
+    <label>Where it's from</label>
+    <select name="source">
+      {% for v, l in [("square", "Square"), ("toast", "Toast"), ("clover", "Clover"), ("doordash", "DoorDash (merchant portal)"),
+                      ("grubhub", "Grubhub (for Restaurants)"), ("pos", "Other / spreadsheet")] %}<option value="{{ v }}">{{ l }}</option>{% endfor %}
+    </select>
+    <label style="font-weight:400"><input type="checkbox" name="consent" checked>
+      These customers agreed to receive texts from us (e.g. opted in at checkout or on the loyalty program).</label>
+    <p class="small muted">Unchecked: customers are imported for learning but Bruno won't text them first.</p>
+    <p><button class="primary" type="submit">Import</button></p>
+  </form>
+  <div class="card small">
+    <b>What Bruno looks for</b>
+    <ul>
+      <li>Phone number (needed to text them)</li>
+      <li>Order date / time</li>
+      <li>Items: "Lg Pepperoni Pizza, 2x Coke" or one row per item with an order/check number</li>
+      <li>Optional: customer name, total, address, order #</li>
+    </ul>
+    Column names are detected automatically. Item names are matched to <a href="/admin/menu">your menu</a>; anything that doesn't match is listed after the import so you can add an alias.
+  </div>
+</div>
+
+{% if report %}
+<h2>Import results</h2>
+<div class="grid">
+  <div class="card stat"><div class="n">{{ report.orders_created }}</div><div class="l">orders imported</div></div>
+  <div class="card stat"><div class="n">{{ report.customers_created }}</div><div class="l">new customers</div></div>
+  <div class="card stat"><div class="n">{{ report.customers_updated }}</div><div class="l">existing customers updated</div></div>
+  <div class="card stat"><div class="n">{{ report.orders_skipped_duplicate }}</div><div class="l">duplicates skipped</div></div>
+  <div class="card stat"><div class="n">{{ report.rows_without_phone }}</div><div class="l">orders without a phone (skipped)</div></div>
+</div>
+{% for e in report.errors[:10] %}<div class="flash error">{{ e }}</div>{% endfor %}
+<p class="small muted">Columns used: {% for k, v in report.columns.items() %}<code>{{ k }}</code>←“{{ v }}” {% endfor %}</p>
+{% if unmatched %}
+  <h2>Items that didn't match the menu</h2>
+  <table><tr><th>Item text</th><th>Times</th></tr>
+  {% for name, n in unmatched %}<tr><td>{{ name }}</td><td>{{ n }}</td></tr>{% endfor %}</table>
+  <p class="small muted">Add these as aliases on the <a href="/admin/menu">Menu</a> page, then re-import the same file. New orders get picked up and duplicates are skipped.</p>
+{% endif %}
+{% endif %}
+{% endblock %}
