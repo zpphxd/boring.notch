@@ -1,191 +1,121 @@
-<h1 align="center">
-  <br>
-  <a href="http://theboring.name"><img src="https://framerusercontent.com/images/RFK4vs0kn8pRMuOO58JeyoemXA.png?scale-down-to=256" alt="Boring Notch" width="150"></a>
-  <br>
-  Boring Notch
-  <br>
-</h1>
+# Bruno
 
+**An autonomous re-engagement agent for local restaurants. It texts lapsed regulars and takes phone orders.**
 
-<p align="center">
-  <a title="Crowdin" target="_blank" href="https://crowdin.com/project/boring-notch"><img src="https://badges.crowdin.net/boring-notch/localized.svg"></a>
-  <img src="https://github.com/TheBoredTeam/boring.notch/actions/workflows/cicd.yml/badge.svg" alt="TheBoringNotch Build & Test" style="margin-right: 10px;" />
-  <a href="https://discord.gg/c8JXA7qrPm">
-    <img src="https://dcbadge.limes.pink/api/server/https://discord.gg/c8JXA7qrPm?style=flat" alt="Discord Badge" />
-  </a>
-  <a href="https://www.ko-fi.com/alexander5015">
-    <img src="https://srv-cdn.himpfen.io/badges/kofi/kofi-flat.svg" alt="Ko-Fi" />
-  </a>
-</p>
+Bruno reads a pizzeria's order history and learns each regular's rhythm. When someone goes quiet, it sends a personal iMessage/SMS at an off-peak hour:
 
-<!--Welcome to **Boring.Notch**, the coolest way to make your MacBook's notch the star of the show! Forget about those boring status bars—our notch turns into a dynamic music control center, complete with a snazzy visualizer and all the music controls you need. It's like having a mini concert right at the top of your screen! -->
+> Hey Dave! It's Marco from Tony's. Noticed it's been a few weeks since your usual Friday large pepperoni pizza. Want me to spin up your usual for pickup around 6:00? Reply here or feel free to give me a call right back at this number to order instantly!
 
-Say hello to **Boring Notch**, the coolest way to make your MacBook’s notch the star of the show! Say goodbye to boring status bars: with Boring Notch, your notch transforms into a dynamic music control center, complete with a vibrant visualizer and all the essential music controls you need. But that’s just the start! Boring Notch also offers calendar integration, a handy file shelf with AirDrop support, a complete MacOS HUD replacement and more!
+The customer can reply by text ("Swap pepperoni for mushroom, add a Diet Coke") or call. Either way, Bruno works from the same cart and customer memory. It confirms a priced summary, charges the card on file, and injects the order into the POS so a kitchen ticket prints.
 
-<p align="center">
-  <img src="https://github.com/user-attachments/assets/2d5f69c1-6e7b-4bc2-a6f1-bb9e27cf88a8" alt="Demo GIF" />
-</p>
-
-<!--https://github.com/user-attachments/assets/19b87973-4b3a-4853-b532-7e82d1d6b040-->
----
-<!--## Table of Contents
-- [Installation](#installation)
-- [Usage](#usage)
-- [Roadmap](#-roadmap)
-- [Building from Source](#building-from-source)
-- [Contributing](#-contributing)
-- [Join our Discord Server](#join-our-discord-server)
-- [Star History](#star-history)
-- [Buy us a coffee!](#buy-us-a-coffee)
-- [Acknowledgments](#-acknowledgments)-->
-
-## Installation
-
-**System Requirements:**
-- macOS **14 Sonoma** or later
-- Apple Silicon or Intel Mac
-
----
-
-### Option 1: Download and Install Manually
-
-<a href="https://github.com/TheBoredTeam/boring.notch/releases/latest/download/boringNotch.dmg" target="_self"><img width="200" src="https://github.com/user-attachments/assets/e3179be1-8416-4b8a-b417-743e1ecc67d6" alt="Download for macOS" /></a>
-
-Once downloaded, open the `.dmg` and move **Boring Notch** to your `/Applications` folder.
-
-> [!IMPORTANT]
-> We don't have an Apple Developer account (yet 👀), so macOS will warn you that Boring Notch is from an unidentified developer on first launch. This is expected behavior.
->
-> You'll need to bypass this before the app will open. You only need to do this once. Use one of the methods below.
-
----
-
-#### Recommended: Terminal (Always Works)
-
-This is the fastest and simplest method. It requires just one command and works reliably for all users, unlike System Settings, which occasionally doesn't.
-
-After moving Boring Notch to your Applications folder, run:
-
-```bash
-xattr -dr com.apple.quarantine /Applications/boringNotch.app
+```
+[POS (Toast/Square/Clover)] ──nightly sync / webhook──▶ POST /webhook/pos/order
+                                                              │
+                                   [Cadence engine: Postgres + Celery/Redis]
+                                       nightly recompute · 3:00 PM scan · 4:30 PM send
+                                                              │
+                              [Context orchestrator: menu · history · usual · weather]
+                                   │                                         │
+                   [Text / iMessage: Sendblue + LLM]            [Voice inbound: Retell AI]
+                   POST /webhook/incoming                       POST /voice/retell/inbound
+                   GPT-4o or Claude, strict JSON                POST /voice/retell/functions/*
+                                   └──────────────┬──────────────────────────┘
+                                 [Shared Conversation row: FSM state + cart JSON]
+                                                  ▼
+                              [Menu validator + server-side pricing + payment]
+                                                  ▼
+                              [POS injection: console ticket / Square Orders API]
 ```
 
-Then open the app normally.
-
----
-
-#### Alternative: System Settings
-
-> [!NOTE]
-> This method doesn't work for all users. If this doesn't work, use the Terminal method above.
-
-1. Try to open the app — you'll see a security warning.
-2. Click **OK** to dismiss it.
-3. Open **System Settings** > **Privacy & Security**.
-4. Scroll to the bottom and click **Open Anyway** next to the Boring Notch warning.
-5. Confirm if prompted.
-
----
-
-### Option 2: Install via Homebrew
-
-You can also install using [Homebrew](https://brew.sh). The Homebrew installation automatically bypasses the macOS security warning described above.
+## Quick start (no API keys needed)
 
 ```bash
-brew install --cask TheBoredTeam/boring-notch/boring-notch
+python3.11 -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+cp .env.example .env
+
+python scripts/seed.py --phone +15551234567 --reset   # 3 test customers, your cell is "Dave"
+python scripts/chat.py --phone +15551234567 --outreach
 ```
 
-## Usage
+```
+bruno> Hey Dave! It's Marco from Tony's. Noticed it's been a few weeks since your usual ...
+you> Swap pepperoni for mushroom, add a Diet Coke
+bruno> You got it!
 
-- Launch the app, and voilà—your notch is now the coolest part of your screen.
-- Hover over the notch to see it expand and reveal all its secrets.
-- Use the controls to manage your music like a rockstar.
-- Click the star in your menu bar to customize your notch to your heart's content.
+Here's what I've got:
+• 1x Large Pizza w/ Mushroom — $20.50
+• 1x Diet Coke (20oz) — $2.99
+Total $25.37 (incl. tax) · pickup ~6:00 · Visa •4242
+Reply YES to place it, or tell me what to change.
+you> yes
+🍕  KITCHEN TICKET RECEIVED ... (ticket + exact POS JSON payload)
+bruno> Awesome! You're all set, Dave! Ready around 6:00. Charged $25.37 to your Visa •4242. See you soon 🍕
+```
 
-## 📋 Roadmap
-- [x] Playback live activity 🎧
-- [x] Calendar integration 📆
-- [x] Reminders integration ☑️
-- [x] Mirror 📷
-- [x] Charging indicator and current percentage 🔋
-- [x] Customizable gesture control 👆🏻
-- [x] Shelf functionality with AirDrop 📚
-- [x] Notch sizing customization, finetuning on different display sizes 🖥️
-- [x] System HUD replacements (volume, brightness, backlight) 🎚️💡⌨️
-- [ ] Bluetooth Live Activity (connect/disconnect for bluetooth devices) 
-- [ ] Weather integration ⛅️
-- [ ] Customizable Layout options 🛠️
-- [ ] Lock Screen Widgets 🔒
-- [ ] Extension system 🧩
-- [ ] Notifications (under consideration) 🔔
-<!-- - [ ] Clipboard history manager 📌 `Extension` -->
-<!-- - [ ] Download indicator of different browsers (Safari, Chromium browsers, Firefox) 🌍 `Extension`-->
-<!-- - [ ] Customizable function buttons 🎛️ -->
-<!-- - [ ] App switcher 🪄 -->
+With no API key set, `LLM_PROVIDER=auto` falls back to an offline rule-based mock, so the whole loop runs locally. To use a real model, set `OPENAI_API_KEY` (GPT-4o, the default) or `ANTHROPIC_API_KEY` (Claude). In the chat simulator, `/call` shows how the voice agent would greet you right now, and `/state` prints the FSM state and cart.
 
-<!-- ## 🧩 Extensions
-> [!NOTE]
-> We’re hard at work on some awesome extensions! Stay tuned, and we’ll keep you updated as soon as they’re released. -->
+Run the tests with `pytest`.
 
-## Building from Source
+## The 24-hour MVP loop with real texts
 
-### Prerequisites
+1. **Database.** Use the SQLite default, or point `DATABASE_URL` at Supabase (`postgresql+psycopg://…`, then `pip install -e ".[postgres]"`). Run `python scripts/seed.py --phone <your cell> --reset`.
+2. **API.** Run `uvicorn bruno.api:app --port 8000`, then expose it with `ngrok http 8000` (or similar).
+3. **Sendblue.** Set `MESSAGING_PROVIDER=sendblue`, the two API keys, `SENDBLUE_FROM_NUMBER` and a `WEBHOOK_SECRET`. In the Sendblue dashboard, point the receive webhook at `https://<tunnel>/webhook/incoming?secret=<WEBHOOK_SECRET>`.
+4. **Trigger.** Run `python scripts/trigger.py --all` (or omit `--all` to contact only customers who are actually drifting). Your phone gets the outreach text.
+5. **Reply from your phone.** The LLM updates the cart, Bruno texts back a priced summary, and after you reply "yes" the kitchen ticket and POS JSON print in the uvicorn terminal. Each ticket is also appended to `data/kitchen_tickets.jsonl`.
 
-- **macOS 14 or later**: If you’re not on the latest macOS, we might need to send a search party.
-- **Xcode 16 or later**: This is where the magic happens, so make sure it’s up-to-date.
+## Voice fallback (Retell AI)
 
-### Installation
+`python scripts/retell_config.py --base-url https://<tunnel>` prints everything you need to paste into Retell:
 
-1. **Clone the Repository**:
-   ```bash
-   git clone https://github.com/TheBoredTeam/boring.notch.git
-   cd boring.notch
-   ```
+- **Inbound call webhook** (set on the phone number): `/voice/retell/inbound`. Bruno looks up the caller by phone and returns `dynamic_variables`: a contextual greeting, the usual order, any in-progress cart from texts, the payment method and the menu.
+- **Agent prompt**, which uses those variables.
+- **Two custom functions.** `update_cart` validates and prices the full cart and saves it to the shared conversation. `place_order` charges the card and injects the order. Leave Retell's "args only" payload option off, because Bruno identifies the caller from `call.from_number`.
 
-2. **Open the Project in Xcode**:
-   ```bash
-   open boringNotch.xcodeproj
-   ```
+Because both channels read and write the same `conversations` row, a customer can start by text and finish by phone. The voice agent opens with *"Hey Dave! I've got your large mushroom pizza from our texts. Want me to put that in?"*
 
-3. **Build and Run**:
-    - Click the "Run" button or press `Cmd + R`. Watch the magic unfold!
+## How it stays safe
 
-## 🤝 Contributing
+- **Deterministic FSM** (`bruno/fsm.py`). The states are `STATE_INITIAL_OUTREACH → STATE_AWAITING_RESPONSE → STATE_NEGOTIATING_MODIFICATIONS → STATE_CONFIRMING_PAYMENT → STATE_POS_INJECTION`, plus the terminal states `COMPLETED`, `DECLINED`, `OPTED_OUT` and `FAILED`. The LLM only reports an *intent*. Code decides the transition, and an order can only fire from `CONFIRMING_PAYMENT`, after the customer has seen the exact items, total, pickup time and payment method. If the customer changes anything in the same message as "yes", Bruno asks them to confirm again.
+- **Menu-constrained structured output** (`bruno/llm/base.py`). The JSON schema enumerates the live menu's item and modifier IDs. OpenAI uses strict Structured Outputs, and Claude uses a forced tool call. The validator rejects an invalid size or topping and gives the model one corrective retry.
+- **Server-side pricing.** The model is told never to quote prices. Totals come from `bruno/menu.py`, and Bruno appends the priced summary to the reply itself.
+- **Compliance.** STOP/UNSUBSCRIBE/… opt a customer out immediately, START opts them back in, and opted-out customers are never contacted. The outreach footer is configurable.
+- **Contact rules.** Bruno never re-texts within the cooldown period, and after an ignored nudge it waits a full ordering cycle. It skips anyone with an open conversation and re-checks eligibility at send time.
+- **Failure handling.** Duplicate webhook deliveries are de-duplicated by message ID. If the LLM is down, the customer gets a polite fallback. If POS injection fails, the charge is refunded and the conversation is marked `FAILED`.
 
-We’re all about good vibes and awesome contributions! Read [CONTRIBUTING.md](CONTRIBUTING.md) to learn how you can join the fun!
+## Layout
 
-## Join our Discord Server
+| Path | What |
+|---|---|
+| `bruno/models.py` | `customers`, `orders`, `cadence_tracker`, plus `conversations`/`messages` (shared dialogue state) |
+| `bruno/cadence.py` | average gap between orders, drift flag, "usual" order, typical pickup slot, outreach candidates |
+| `bruno/orchestrator.py` | outreach copy, LLM system prompt, priced summaries, voice greeting |
+| `bruno/agent.py` | the engine: outreach, inbound text turns, finalize (pay + POS), voice tools |
+| `bruno/llm/` | OpenAI, Anthropic and offline mock adapters behind one `generate_turn` interface |
+| `bruno/messaging/` | Sendblue sender and inbound parser, console sender |
+| `bruno/voice/` | Retell dynamic variables, agent prompt and function schemas |
+| `bruno/pos/` | canonical `POSOrder` JSON, console kitchen printer, Square Orders API adapter |
+| `bruno/payments.py` | charge/refund interface (mock provider for the MVP) |
+| `bruno/tasks.py` | Celery: nightly cadence recompute, 3 PM scan → 4:30 PM sends |
+| `bruno/api.py` | FastAPI webhooks |
+| `scripts/` | `seed.py`, `trigger.py`, `chat.py`, `retell_config.py` |
+| `data/menu.json` | the menu (prices in cents, sizes, modifier groups, aliases) |
 
-<a href="https://discord.gg/GvYcYpAKTu" target="_blank"><img src="https://iili.io/28m3GHv.png" alt="Join The Boring Server!" style="height: 60px !important;width: 217px !important;" ></a>
+## Running the scheduler
 
-## Star History
+```bash
+docker compose up -d                       # Postgres + Redis
+celery -A bruno.tasks worker --loglevel=info
+celery -A bruno.tasks beat   --loglevel=info
+```
 
-<a href="https://www.star-history.com/#TheBoredTeam/boring.notch&Timeline">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=TheBoredTeam/boring.notch&type=Timeline&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=TheBoredTeam/boring.notch&type=Timeline" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=TheBoredTeam/boring.notch&type=Timeline" />
- </picture>
-</a>
+POS history arrives through `POST /webhook/pos/order` (`{phone, name, external_id, items, total, order_date}`), from a nightly export or a POS webhook relay. Each ingested order recomputes that customer's cadence.
 
-## Support us on Ko-fi!
-<!-- <a href="https://www.buymeacoffee.com/jfxh67wvfxq" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-red.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" ></a> -->
-<a href="https://www.ko-fi.com/alexander5015" target="_blank"><img src="https://github.com/user-attachments/assets//a76175ef-7e93-475a-8b67-4922ba5964c2" alt="Support us on Ko-fi" style="height: 70px !important;width: 346px !important;" ></a>
+## Not built yet
 
-## 🎉 Acknowledgments
-
-We would like to express our gratitude to the authors and maintainers of the open-source projects that made this possible. 
-
-## Notable Projects
-- **[MediaRemoteAdapter](https://github.com/ungive/mediaremote-adapter)** –  An open-source project that allowed us to use the Now Playing source in macOS 15.4+
-- **[NotchDrop](https://github.com/Lakr233/NotchDrop)** – An open-source project that has been instrumental in developing the first version of the "Shelf" feature in Boring Notch.
-
-For a full list of licenses and attributions, please see the [Third-Party Licenses](./THIRD_PARTY_LICENSES.md) file.
-
-### Icon credits: [@maxtron95](https://github.com/maxtron95)
-### Website credits: [@himanshhhhuv](https://github.com/himanshhhhuv)
-
-- **SwiftUI**: For making us look like coding wizards.
-- **You**: For being awesome and checking out **boring.notch**!
-
-
+- **Payments** are mocked. To go live, add a Stripe or Square Payments provider behind `PaymentProvider` and store only processor tokens.
+- **POS:** Square is implemented with ad-hoc line items and needs catalog mapping for production. Toast and Clover adapters still need to be written.
+- **Schema:** tables are created with `create_all`. Add Alembic before the schema starts changing.
+- **Scaling:** the per-customer lock is in-process. Swap it for a Redis lock before running multiple API workers, or move inbound processing onto Celery.
+- **Voice signatures:** Retell webhooks are protected by the shared secret. Verifying `X-Retell-Signature` is a TODO.

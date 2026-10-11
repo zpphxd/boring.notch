@@ -1,0 +1,18 @@
+# Local Postgres + Redis for running Bruno the way it runs in production.
+#   docker compose up -d
+#   DATABASE_URL=postgresql+psycopg://bruno:bruno@localhost:5432/bruno
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: bruno
+      POSTGRES_PASSWORD: bruno
+      POSTGRES_DB: bruno
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+  redis:
+    image: redis:7
+    ports: ["6379:6379"]
+
+volumes:
+  pgdata:

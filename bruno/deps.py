@@ -1,0 +1,34 @@
+"""Wiring of pluggable providers. Tests build their own Deps with fakes."""
+
+from dataclasses import dataclass
+from functools import lru_cache
+
+from bruno.config import Settings, get_settings
+from bruno.llm import LLMClient, build_llm
+from bruno.menu import Menu, get_menu
+from bruno.messaging import Messenger, build_messenger
+from bruno.payments import PaymentProvider, build_payments
+from bruno.pos import POSClient, build_pos
+
+
+@dataclass
+class Deps:
+    settings: Settings
+    menu: Menu
+    llm: LLMClient
+    messenger: Messenger
+    pos: POSClient
+    payments: PaymentProvider
+
+
+@lru_cache
+def get_deps() -> Deps:
+    settings = get_settings()
+    return Deps(
+        settings=settings,
+        menu=get_menu(),
+        llm=build_llm(settings),
+        messenger=build_messenger(settings),
+        pos=build_pos(settings),
+        payments=build_payments(settings),
+    )

@@ -1,0 +1,99 @@
+{
+  "currency": "USD",
+  "items": [
+    {
+      "id": "pizza",
+      "name": "Pizza",
+      "category": "pizza",
+      "description": "Build-your-own: cheese pizza plus any toppings",
+      "sizes": {"small": 1200, "medium": 1500, "large": 1800},
+      "modifier_groups": ["topping", "crust"],
+      "aliases": ["pizza", "pie", "cheese pizza", "plain pizza"]
+    },
+    {
+      "id": "margherita",
+      "name": "Margherita Pizza",
+      "category": "pizza",
+      "description": "Fresh mozzarella, basil, San Marzano tomato",
+      "sizes": {"small": 1400, "medium": 1700, "large": 2100},
+      "modifier_groups": ["topping", "crust"],
+      "aliases": ["margherita", "margarita"]
+    },
+    {
+      "id": "supreme",
+      "name": "Supreme Pizza",
+      "category": "pizza",
+      "description": "Pepperoni, sausage, peppers, onions, mushrooms, olives",
+      "sizes": {"small": 1600, "medium": 2000, "large": 2400},
+      "modifier_groups": ["crust"],
+      "aliases": ["supreme", "the works"]
+    },
+    {
+      "id": "garlic_knots",
+      "name": "Garlic Knots (6)",
+      "category": "sides",
+      "price": 599,
+      "aliases": ["garlic knots", "knots"]
+    },
+    {
+      "id": "wings",
+      "name": "Wings (10)",
+      "category": "sides",
+      "price": 1399,
+      "modifier_groups": ["wing_sauce"],
+      "aliases": ["wings", "chicken wings", "buffalo wings"]
+    },
+    {
+      "id": "caesar_salad",
+      "name": "Caesar Salad",
+      "category": "sides",
+      "price": 899,
+      "aliases": ["caesar", "caesar salad", "salad"]
+    },
+    {
+      "id": "cannoli",
+      "name": "Cannoli",
+      "category": "dessert",
+      "price": 499,
+      "aliases": ["cannoli", "cannolis"]
+    },
+    {
+      "id": "coke",
+      "name": "Coca-Cola (20oz)",
+      "category": "drinks",
+      "price": 299,
+      "aliases": ["coke", "coca cola", "coca-cola"]
+    },
+    {
+      "id": "diet_coke",
+      "name": "Diet Coke (20oz)",
+      "category": "drinks",
+      "price": 299,
+      "aliases": ["diet coke", "diet"]
+    },
+    {
+      "id": "sprite",
+      "name": "Sprite (20oz)",
+      "category": "drinks",
+      "price": 299,
+      "aliases": ["sprite"]
+    }
+  ],
+  "modifiers": [
+    {"id": "pepperoni", "name": "Pepperoni", "group": "topping", "price": {"small": 150, "medium": 200, "large": 250}, "aliases": ["pepperoni", "pep", "roni"]},
+    {"id": "mushroom", "name": "Mushroom", "group": "topping", "price": {"small": 150, "medium": 200, "large": 250}, "aliases": ["mushroom", "mushrooms", "shroom"]},
+    {"id": "sausage", "name": "Sausage", "group": "topping", "price": {"small": 150, "medium": 200, "large": 250}, "aliases": ["sausage"]},
+    {"id": "onion", "name": "Onion", "group": "topping", "price": {"small": 100, "medium": 150, "large": 200}, "aliases": ["onion", "onions"]},
+    {"id": "green_pepper", "name": "Green Pepper", "group": "topping", "price": {"small": 100, "medium": 150, "large": 200}, "aliases": ["green pepper", "green peppers", "peppers"]},
+    {"id": "black_olive", "name": "Black Olive", "group": "topping", "price": {"small": 100, "medium": 150, "large": 200}, "aliases": ["olive", "olives", "black olives"]},
+    {"id": "extra_cheese", "name": "Extra Cheese", "group": "topping", "price": {"small": 150, "medium": 200, "large": 250}, "aliases": ["extra cheese"]},
+    {"id": "bacon", "name": "Bacon", "group": "topping", "price": {"small": 150, "medium": 200, "large": 250}, "aliases": ["bacon"]},
+    {"id": "jalapeno", "name": "Jalapeño", "group": "topping", "price": {"small": 100, "medium": 150, "large": 200}, "aliases": ["jalapeno", "jalapenos", "jalapeño"]},
+    {"id": "thin_crust", "name": "Thin Crust", "group": "crust", "price": 0, "aliases": ["thin crust", "thin"]},
+    {"id": "gluten_free_crust", "name": "Gluten-Free Crust", "group": "crust", "price": 300, "aliases": ["gluten free", "gluten-free"]},
+    {"id": "buffalo_sauce", "name": "Buffalo", "group": "wing_sauce", "price": 0, "aliases": ["buffalo"]},
+    {"id": "bbq_sauce", "name": "BBQ", "group": "wing_sauce", "price": 0, "aliases": ["bbq", "barbecue"]},
+    {"id": "garlic_parm_sauce", "name": "Garlic Parm", "group": "wing_sauce", "price": 0, "aliases": ["garlic parm", "garlic parmesan"]}
+  ],
+  "exclusive_groups": ["crust", "wing_sauce"]
+}
